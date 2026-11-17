@@ -1,4 +1,4 @@
-# femto8 → Q2 Pod native port (stage 2: cartridge browser preview)
+# Pico 8 Emulator for Q2 (femto8 → Q2 Pod native port) (stage 2: cartridge browser preview)
 
 **Status:** The SD-card cartridge **browser works**, but the femto8 Lua emulator is **not integrated**. Selecting a game currently displays **RUNTIME NOT READY**, rather than launching it. This is not yet a playable Pico-8 emulator. The compiled executable targets MIPS32, not an emulator or SDL runtime.
 
