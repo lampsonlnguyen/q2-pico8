@@ -2,6 +2,9 @@
 #ifndef Q2_FEMTO8_PLATFORM_H
 #define Q2_FEMTO8_PLATFORM_H
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 enum { Q2_WIDTH=375, Q2_HEIGHT=320, P8_WIDTH=128, P8_HEIGHT=128 };
 typedef uint32_t q2_pixel;
 typedef struct { unsigned buttons; unsigned pressed; int wheel; unsigned quit; } q2_input;
@@ -12,6 +15,12 @@ int q2_open(void);
 q2_input q2_read_input(void);
 /* PICO-8 packed 4bpp framebuffer: 128x128, low nibble is left pixel. */
 void q2_present(const uint8_t *packed_pixels, const uint32_t palette[16]);
+/* FAKE-08 supports screen palette indices up to 143 (extended palette). */
+void q2_present_fake08(const uint8_t *packed_pixels,
+                       const uint8_t screen_map[16],
+                       const uint32_t colors[144]);
 unsigned q2_millis(void);
 void q2_close(void);
+#ifdef __cplusplus
+}
 #endif
