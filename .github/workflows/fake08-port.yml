@@ -14,7 +14,9 @@ jobs:
       - name: Install native and MIPS tools
         run: sudo apt-get update && sudo apt-get install -y clang lld gcc g++ make unzip zip file
       - name: Verify existing freestanding Q2 browser
-        run: make check
+        run: |
+          bash -n tools/build-fake08.sh
+          make check
       - name: Get pinned FAKE-08 upstream sources
         run: |
           git init -q /tmp/fake-08
@@ -29,6 +31,10 @@ jobs:
             -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
             -I/tmp/fake-08/libs/simpleini src/fake08_host.cpp
           g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+            -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
+            -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
+            -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
+          g++ -std=c++17 -DQ2_GLIBC -fsyntax-only \
             -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
             -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
             -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
