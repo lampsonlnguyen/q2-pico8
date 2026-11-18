@@ -65,7 +65,7 @@ jobs:
       - name: Install MIPS C++ cross toolchain and firmware extraction tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++-11-mipsel-linux-gnu gcc-11-mipsel-linux-gnu file curl unzip zip binutils xz-utils squashfs-tools
+          sudo apt-get install -y g++-11-mipsel-linux-gnu gcc-11-mipsel-linux-gnu file curl unzip zip binutils xz-utils squashfs-tools python3 qemu-user
       - name: Fetch original Q2 V1.36 firmware and build hardware sysroot
         run: |
           set -euo pipefail
@@ -96,8 +96,16 @@ jobs:
         run: |
           file dist/.pico8/q2-pico8
           readelf -h dist/.pico8/q2-pico8
+          readelf -h dist/.pico8/q2-pico8 | grep -i nan2008
+          readelf -l dist/.pico8/q2-pico8 | grep -F '/lib/ld-linux-mipsn8.so.1'
           readelf -A dist/.pico8/q2-pico8
           readelf -d dist/.pico8/q2-pico8 | grep NEEDED || true
+      - name: Smoke-test MIPS executable startup with firmware loader
+        run: |
+          set -euxo pipefail
+          # No Q2 framebuffer in the runner; the app should return cleanly
+          # from q2_open(). This verifies loader, libc and static C++ startup.
+          timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/.pico8/q2-pico8
       - name: Make install ZIP with real FAKE-08 executable
         run: |
           cp q2app dist/.pico8/q2app
