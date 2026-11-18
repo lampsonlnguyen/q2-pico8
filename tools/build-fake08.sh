@@ -64,7 +64,7 @@ objects+=("$out/fake08_host.o")
 "$cxx" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
-"$cxx" "${flags[@]}" -static-libstdc++ -Wl,--no-warn-mismatch -Wl,--gc-sections -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
+"$cxx" "${flags[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
 # GCC's legacy-NaN startup archive can overwrite ELF NaN2008 e_flags.
 # This is an experimental ABI bridge, not proof of mixed-lib correctness.
 python3 tools/mark-mips-nan2008.py dist/.pico8/q2-pico8
