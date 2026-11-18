@@ -70,7 +70,14 @@ int main(void) {
 extern "C" int q2_main(void) {
 #endif
     char path[160]={};
+#ifdef Q2_FAKE08_SMOKE
+    /* Run a locally authored test cartridge against the actual FAKE-08 VM,
+     * using a simulated framebuffer and input instead of a Q2 device. */
+    const char *demo="tests/demo.p8";
+    for(unsigned i=0;demo[i]&&i+1<sizeof path;i++)path[i]=demo[i];
+#else
     if(!pick_cart(path,sizeof path))return 0;
+#endif
     Host host;
     PicoRam memory;
     memory.Reset();
