@@ -39,21 +39,21 @@ fi
 gcc_include="$("$cc" -print-file-name=include)"
 flags=(-O2 -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008
        -fno-rtti -ffunction-sections -fdata-sections
-       "--sysroot=$sysroot" -nostdinc
-       -isystem "$gcc_include"
-       -isystem "$sysroot/usr/include"
-       -isystem "$sysroot/usr/include/mipsel-linux-gnu")
+       "--sysroot=$sysroot" -nostdinc)
+sysincludes=(-isystem "$gcc_include"
+             -isystem "$sysroot/usr/include"
+             -isystem "$sysroot/usr/include/mipsel-linux-gnu")
 objects=()
 compile_cpp(){
     local input="$1" name
     name="$(echo "$input" | tr '/.' '__')"
-    "$cxx" "${flags[@]}" "${old_cxx[@]}" "${includes[@]}" -std=gnu++17 -c "$input" -o "$out/$name.o"
+    "$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -std=gnu++17 -c "$input" -o "$out/$name.o"
     objects+=("$out/$name.o")
 }
 compile_c(){
     local input="$1" name
     name="$(echo "$input" | tr '/.' '__')"
-    "$cc" "${flags[@]}" "${includes[@]}" -std=gnu11 -c "$input" -o "$out/$name.o"
+    "$cc" "${flags[@]}" "${sysincludes[@]}" "${includes[@]}" -std=gnu11 -c "$input" -o "$out/$name.o"
     objects+=("$out/$name.o")
 }
 # The native Q2 runtime uses glibc's main(), not the standalone browser's
@@ -73,13 +73,13 @@ done
 # Q2_GLIBC suppresses the freestanding browser's custom __start.
 for file in src/q2_platform.c src/cart_browser.c; do
     name="$(echo "$file" | tr '/.' '__')"
-    "$cc" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu11 -c "$file" -o "$out/$name.o"
+    "$cc" "${flags[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu11 -c "$file" -o "$out/$name.o"
     objects+=("$out/$name.o")
 done
-"$cxx" "${flags[@]}" "${old_cxx[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
+"$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_host.cpp -o "$out/fake08_host.o"
 objects+=("$out/fake08_host.o")
-"$cxx" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
+"$cxx" "${flags[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
 "$cxx" "${flags[@]}" "${old_lib[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread \
