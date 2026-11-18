@@ -33,5 +33,9 @@ for file in src/cart_browser.c tests/q2_fake08_stub.c; do
     objects+=("$out")
 done
 g++ -o build/fake08-link/fake08-q2-linux-smoke "${objects[@]}" -lm -pthread
-./build/fake08-link/fake08-q2-linux-smoke
+if ! ./build/fake08-link/fake08-q2-linux-smoke; then
+    echo "FAKE-08 cartridge smoke test failed; runtime log:" >&2
+    [ ! -f /tmp/pico.log ] || tail -n 70 /tmp/pico.log >&2
+    exit 1
+fi
 echo "Full FAKE-08 engine linked against Q2 host ABI successfully (host stub)."
