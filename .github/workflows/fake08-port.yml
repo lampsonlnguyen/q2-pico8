@@ -21,9 +21,14 @@ jobs:
           git -C /tmp/fake-08 remote add origin https://github.com/jtothebell/fake-08.git
           git -C /tmp/fake-08 fetch --depth 1 origin 814991a2571ad3970e386cef48f3b148aa1c27b9
           git -C /tmp/fake-08 checkout -q --detach FETCH_HEAD
+          git -C /tmp/fake-08 submodule update --init --depth 1
       - name: Compile native FAKE-08 adapter against real upstream headers
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
-            -Isrc -I/tmp/fake-08/source src/fake08_host.cpp
+            -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
+            -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
+            -I/tmp/fake-08/libs/simpleini src/fake08_host.cpp
           g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
-            -Isrc -I/tmp/fake-08/source src/fake08_main.cpp
+            -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
+            -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
+            -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
