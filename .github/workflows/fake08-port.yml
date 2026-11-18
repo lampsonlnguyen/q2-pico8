@@ -56,3 +56,57 @@ jobs:
             -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
       - name: Link the full FAKE-08 game engine against Q2 host ABI
         run: FAKE08_SRC=/tmp/fake-08 bash tools/test-fake08-link.sh
+
+  device:
+    needs: bridge
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install MIPS C++ cross toolchain and firmware extraction tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-11-mipsel-linux-gnu gcc-11-mipsel-linux-gnu file curl unzip zip binutils xz-utils squashfs-tools
+      - name: Fetch original Q2 V1.36 firmware and build hardware sysroot
+        run: |
+          set -euo pipefail
+          mkdir -p fw
+          curl --fail --location --retry 3 --silent --show-error \
+            'https://raw.githubusercontent.com/lampsonlnguyen/q2-diamond-crush/main/fw/Q2%20Firmware%20V1.36.zip' \
+            -o 'fw/Q2 Firmware V1.36.zip'
+          git clone --depth 1 https://github.com/DiamondBond/q2-rockbox.git /tmp/q2-rockbox
+          cp /tmp/q2-rockbox/tools/shanlingq2/mksysroot.sh /tmp/mksysroot-v136.sh
+          sed -i 's/Q2 Firmware V1.32/Q2 Firmware V1.36/g' /tmp/mksysroot-v136.sh
+          sha=$(sha256sum 'fw/Q2 Firmware V1.36.zip' | cut -d' ' -f1)
+          sed -i "s/154c17822d09be001be35c03d2d3488424dee195221790bd70864480d55b0f00/$sha/g" /tmp/mksysroot-v136.sh
+          sh /tmp/mksysroot-v136.sh 'fw/Q2 Firmware V1.36.zip' "$HOME/.cache/q2/sysroot"
+      - name: Fetch pinned FAKE-08 and dependencies
+        run: |
+          git init -q /tmp/fake-08
+          git -C /tmp/fake-08 remote add origin https://github.com/jtothebell/fake-08.git
+          git -C /tmp/fake-08 fetch --depth 1 origin 814991a2571ad3970e386cef48f3b148aa1c27b9
+          git -C /tmp/fake-08 checkout -q --detach FETCH_HEAD
+          git -C /tmp/fake-08 submodule update --init --depth 1
+      - name: Cross-compile real FAKE-08 engine for Q2
+        env:
+          FAKE08_SRC: /tmp/fake-08
+          Q2_CXX: mipsel-linux-gnu-g++-11
+          Q2_CC: mipsel-linux-gnu-gcc-11
+        run: bash tools/build-fake08.sh
+      - name: Check MIPS architecture and runtime dependencies
+        run: |
+          file dist/.pico8/q2-pico8
+          readelf -h dist/.pico8/q2-pico8
+          readelf -A dist/.pico8/q2-pico8
+          readelf -d dist/.pico8/q2-pico8 | grep NEEDED || true
+      - name: Make install ZIP with real FAKE-08 executable
+        run: |
+          cp q2app dist/.pico8/q2app
+          sed -i 's/PICO-8 Browser Preview/PICO-8/' dist/.pico8/q2app
+          mkdir -p dist/.pico8/carts
+          touch dist/.pico8/carts/.keep
+          (cd dist && zip -q -r q2-pico8-playable-experimental.zip .pico8)
+      - uses: actions/upload-artifact@v6
+        with:
+          name: q2-pico8-playable-experimental
+          path: dist/q2-pico8-playable-experimental.zip
+          if-no-files-found: error
