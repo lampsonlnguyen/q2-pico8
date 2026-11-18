@@ -52,12 +52,7 @@ done
 for file in "$src/libs/miniz/"*.c "$src/libs/simpleini/"*.c; do
     [ -f "$file" ] && compile_c "$file"
 done
-compile_c src/q2_platform.c
-compile_c src/cart_browser.c
-# Recompile Q2 bridge units with Q2_GLIBC so they use the standard
-# C/C++ startup rather than the freestanding preview's __start symbol.
-# The two q2_*.c files were already compiled above; remove and redo them.
-objects=("${objects[@]:0:${#objects[@]}-2}")
+# Q2_GLIBC suppresses the freestanding browser's custom __start.
 for file in src/q2_platform.c src/cart_browser.c; do
     name="$(echo "$file" | tr '/.' '__')"
     "$cc" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu11 -c "$file" -o "$out/$name.o"
