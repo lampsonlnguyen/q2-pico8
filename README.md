@@ -6,8 +6,8 @@
 
 ## Install and add cartridge files
 
-1. Build on Ubuntu/WSL with `make check` (requires `clang lld make zip unzip gcc file`), or use the `q2-femto8-browser-preview.zip` build artifact.
-2. Extract the ZIP to the **root** of your Q2 Pod microSD card. The ZIP includes an empty `.pico8/carts/` directory.
+1. Open [GitHub Actions](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml) and select the latest successful **Q2 PICO-8 bridge** run. Under **Artifacts**, download `q2-pico8-browser-preview`. Extract the downloaded artifact ZIP to obtain **`q2-femto8-browser-preview.zip`**. Alternatively, build locally using `make check` (requires `clang lld make zip unzip gcc file`).
+2. Extract the **contents of `q2-femto8-browser-preview.zip`** directly to the **root** of your Q2 Pod microSD card. Do not extract GitHub's Source code ZIP. The install ZIP contains `.pico8/q2app`, `.pico8/q2-pico8` and an empty `.pico8/carts/` directory.
 3. Add compatible `.p8` or `.p8.png` cartridge files to `.pico8/carts/` (only files in this folder are scanned).
 4. Launch **PICO-8 Browser Preview** from Library → Games.
 5. Rotate the wheel to select a game; Center displays the loader-not-ready notice. Press Back to exit. To rescan after copying games, relaunch the app. The list also refreshes periodically when the number of files changes.
@@ -21,6 +21,23 @@ SD-card/
       example.p8
       example2.p8.png
 ```
+
+### If PICO-8 does not appear in Library → Games
+
+Q2 Pod's scanner only lists a card game when all of the following are true:
+the SD root has a folder named exactly `.pico8`, that folder contains a
+readable `q2app` file with `game=1`, and the compiled MIPS binary named
+`q2-pico8` exists **in that same folder**. The app currently appears as
+**PICO-8 Browser Preview**, not just PICO-8.
+
+On Windows, enable **View → Show → Hidden items** to find `.pico8`.
+Check that you didn't accidentally create `microSD/q2-femto8-browser-preview/.pico8`
+or `microSD/.pico8/.pico8`, or copy only a ZIP into the card.
+Exit and reopen Library → Games after copying the files. If it is still
+missing, safely eject and reinsert the card, then restart the Q2.
+
+The browser preview **does not launch PICO-8 games**. The actual FAKE-08
+engine is still experimental and isn't included in this artifact.
 
 The browser scans the SD card directly using Linux `getdents64` and supports up to 64 files. Filenames over 59 bytes are skipped. An unsupported extension is ignored. The scanner and menu are written in freestanding C, and use the established Q2 framebuffer and game-socket protocol.
 
