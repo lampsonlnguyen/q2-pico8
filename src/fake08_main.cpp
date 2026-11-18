@@ -64,7 +64,11 @@ static int pick_cart(char *path,unsigned cap){
 }
 /* q2_platform.c supplies the native MIPS __start entry and calls q2_main.
  * Do not link cart_browser_probe.c alongside this file. */
+#ifdef Q2_GLIBC
+int main(void) {
+#else
 extern "C" int q2_main(void) {
+#endif
     char path[160]={};
     if(!pick_cart(path,sizeof path))return 0;
     Host host;
