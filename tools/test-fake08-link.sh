@@ -14,7 +14,7 @@ for file in "$src/source/"*.cpp "$src/libs/lodepng/"*.cpp \
             src/fake08_host.cpp src/fake08_main.cpp; do
     [ "${file##*/}" = main.cpp ] && continue
     out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
-    g++ -O0 -std=gnu++17 -fno-rtti -DQ2_GLIBC \
+    g++ -O0 -std=gnu++17 -fno-rtti -DQ2_GLIBC -DQ2_FAKE08_SMOKE \
         "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")
 done
@@ -24,12 +24,12 @@ for file in "$src/libs/z8lua/"*.c "$src/libs/miniz/"*.c \
     [ -f "$file" ] || continue
     case "${file##*/}" in lua.c|luac.c|ltests.c) continue;; esac
     out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
-    g++ -O0 -std=gnu++17 -DQ2_GLIBC "${includes[@]}" -c "$file" -o "$out"
+    g++ -O0 -std=gnu++17 -DQ2_GLIBC -DQ2_FAKE08_SMOKE "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")
 done
 for file in src/cart_browser.c tests/q2_fake08_stub.c; do
     out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
-    gcc -O0 -std=gnu11 -DQ2_GLIBC "${includes[@]}" -c "$file" -o "$out"
+    gcc -O0 -std=gnu11 -DQ2_GLIBC -DQ2_FAKE08_SMOKE "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")
 done
 g++ -o build/fake08-link/fake08-q2-linux-smoke "${objects[@]}" -lm -pthread
