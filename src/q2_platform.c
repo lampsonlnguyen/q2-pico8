@@ -104,10 +104,38 @@ q2_input q2_read_input(void) {
                 /* Back maps to PICO-8 pause/exit; two releases quit player. */
                 if(++back_releases>=2)input_state.quit=1;
                 else input_state.pressed|=Q2_X;
+#ifdef Q2_GLIBC
+            } else {
+                /* Physical Left/Right and Play controls reach the VM. */
+                unsigned bit=(code==222||code==172)?Q2_LEFT:
+                             (code==223||code==173)?Q2_RIGHT:
+                             code==171?Q2_DOWN:0;
+                if(bit&&m[2]=='d'){
+                    if(!(input_state.buttons&bit))input_state.pressed|=bit;
+                    input_state.buttons|=bit;
+                }else if(bit&&m[2]=='u'){
+                    if(!(input_state.buttons&bit))input_state.pressed|=bit;
+                    input_state.buttons&=~bit;
+                }
+#endif
             }
         } else if(m[0]=='t'&&m[1]==' '&&m[2]=='d'&&m[3]==' ') {
-            /* Touch-down is instantaneous, matching the working Dino Runner input. */
+#ifdef Q2_GLIBC
+            /* Touch regions supplement the compact Q2 physical controls:
+             * left/right sides steer, top/bottom navigate, center activates. */
+            int x=number(m+4);
+            const char *y=m+4;
+            while(*y&&*y!=' ')++y;
+            if(*y==' ')++y;
+            int py=number(y);
+            if(x>=0&&x<Q2_WIDTH&&py>=0&&py<Q2_HEIGHT){
+                unsigned bit=x<95?Q2_LEFT:x>=280?Q2_RIGHT:
+                             py<90?Q2_UP:py>=235?Q2_DOWN:Q2_O;
+                input_state.pressed|=bit;
+            }
+#else
             input_state.pressed|=Q2_O;
+#endif
         }
     }
     return input_state;
