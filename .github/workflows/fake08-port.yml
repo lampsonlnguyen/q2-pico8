@@ -21,6 +21,18 @@ jobs:
           clang --target=mipsel-linux-gnu -march=mips32r2 -mabi=32 \
             -mfp64 -mnan=2008 -ffreestanding -std=c11 \
             -DQ2_GLIBC -Isrc -fsyntax-only src/q2_platform.c
+      - name: Verify installable browser-preview archive
+        run: |
+          unzip -t dist/q2-femto8-browser-preview.zip
+          unzip -Z1 dist/q2-femto8-browser-preview.zip | grep -Fx '.pico8/q2app'
+          unzip -Z1 dist/q2-femto8-browser-preview.zip | grep -Fx '.pico8/q2-pico8'
+          unzip -p dist/q2-femto8-browser-preview.zip .pico8/q2app | grep -Fx 'game=1'
+          file dist/.pico8/q2-pico8 | grep -E 'ELF 32-bit LSB.*MIPS'
+      - uses: actions/upload-artifact@v6
+        with:
+          name: q2-pico8-browser-preview
+          path: dist/q2-femto8-browser-preview.zip
+          if-no-files-found: error
       - name: Get pinned FAKE-08 upstream sources
         run: |
           git init -q /tmp/fake-08
