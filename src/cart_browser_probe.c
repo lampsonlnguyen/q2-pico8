@@ -15,7 +15,7 @@ int q2_main(void){
     unsigned redraw=1,last=q2_millis(),pending=0;
     while(1){
         q2_input input=q2_read_input();
-        if(input.quit || (input.pressed&Q2_X))break;
+        if(input.quit || (input.pressed&Q2_PAUSE))break;
         if(input.wheel!=0 && carts.count){
             int step=input.wheel>0?1:-1;
             if(step>0)carts.selected=(carts.selected+1)%carts.count;
