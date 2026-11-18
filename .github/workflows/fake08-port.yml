@@ -1,0 +1,29 @@
+name: Q2 PICO-8 bridge
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bridge:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native and MIPS tools
+        run: sudo apt-get update && sudo apt-get install -y clang lld gcc g++ make unzip zip file
+      - name: Verify existing freestanding Q2 browser
+        run: make check
+      - name: Get pinned FAKE-08 upstream sources
+        run: |
+          git init -q /tmp/fake-08
+          git -C /tmp/fake-08 remote add origin https://github.com/jtothebell/fake-08.git
+          git -C /tmp/fake-08 fetch --depth 1 origin 814991a2571ad3970e386cef48f3b148aa1c27b9
+          git -C /tmp/fake-08 checkout -q --detach FETCH_HEAD
+      - name: Compile native FAKE-08 adapter against real upstream headers
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+            -Isrc -I/tmp/fake-08/source src/fake08_host.cpp
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+            -Isrc -I/tmp/fake-08/source src/fake08_main.cpp
