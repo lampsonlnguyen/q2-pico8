@@ -93,7 +93,13 @@ extern "C" int q2_main(void) {
      * Pass the filename only; an absolute Q2 path becomes a broken double path. */
     const char *filename=path;
     for(const char *p=path;*p;++p)if(*p=='/')filename=p+1;
-    vm.LoadCart(filename,true);
+    if(!vm.LoadCart(filename,false)){
+        /* Never silently replace an invalid cartridge with the BIOS game. */
+        vm.CloseCart();
+        host.oneTimeCleanup();
+        Logger_Exit();
+        return 2;
+    }
     vm.vm_run();
     vm.GameLoop();
     vm.CloseCart();
