@@ -2,6 +2,9 @@
 #ifndef Q2_CART_BROWSER_H
 #define Q2_CART_BROWSER_H
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 #define Q2_CART_MAX 64
 #define Q2_CART_NAME_MAX 60
 #define Q2_CART_DIR "/mnt/mmc/.pico8/carts"
@@ -16,4 +19,6 @@ unsigned q2_find_carts(q2_cart_list *list);
 int q2_cart_path(const q2_cart_list *list, char *out, unsigned cap);
 /* Draw 128x128 4bpp browser screen into PICO-8-compatible pixel buffer. */
 void q2_draw_cart_browser(uint8_t *screen,const q2_cart_list *list,int pending);
+#ifdef __cplusplus
+}
 #endif
