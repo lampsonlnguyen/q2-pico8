@@ -1,6 +1,8 @@
-# Pico 8 Emulator for Q2 (femto8 → Q2 Pod native port) (stage 2: cartridge browser preview)
+# PICO-8 player for Q2 Pod — FAKE-08 port in progress
 
-**Status:** The SD-card cartridge **browser works**, but the femto8 Lua emulator is **not integrated**. Selecting a game currently displays **RUNTIME NOT READY**, rather than launching it. This is not yet a playable Pico-8 emulator. The compiled executable targets MIPS32, not an emulator or SDL runtime.
+**Status (stage 3):** The production/default installable ZIP remains the **working Q2 cartridge-browser preview**, not a playable emulator. The first *real FAKE-08* C++ engine integration has been implemented separately under `src/fake08_host.cpp` and `src/fake08_main.cpp`: it uses the existing browser to select a cartridge, then constructs FAKE-08's actual VM and calls `LoadCart` / `GameLoop`. The Q2 framebuffer bridge now supports FAKE-08's 144-color extended display palette. GitHub Actions tests the C++ adapter against a pinned upstream source revision.
+
+**Do not confuse the CI C++ syntax check with a working Q2 executable.** A compatible MIPS C++17 standard library/runtime and a Q2 firmware sysroot are still needed to compile/link this engine and verify gameplay on-device. The default `make` target intentionally remains unchanged so users don't install an untested player.
 
 ## Install and add cartridge files
 
@@ -30,7 +32,30 @@ The browser scans the SD card directly using Linux `getdents64` and supports up 
 - `src/femto8_bridge.c`: Earlier unlinked proof-of-concept for graphics and input integration with upstream femto8.
 - `tests/browser_test.c`: Unit test for cartridge discovery and path construction.
 
-## What remains to run games
+## FAKE-08 integration (experimental)
+
+The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
+
+- `src/fake08_host.cpp`: implements the upstream `Host` interface, wheel/Center/Back input translation, 2× framebuffer drawing, cartridge enumeration, frame timing and lifecycle. Audio is deliberately disabled initially.
+- `src/fake08_main.cpp`: selects a cartridge with the existing Q2 browser, opens the real FAKE-08 `Vm`, loads the selected file, runs the VM loop and closes it cleanly.
+- `src/q2_platform.c`: renders normal 16-color and FAKE-08's alternate 128–143 colors using the per-frame screen palette map.
+- `.github/workflows/fake08-port.yml`: checks that the freestanding browser still builds and compiles the FAKE-08-specific C++ files against upstream revision `814991a2571ad3970e386cef48f3b148aa1c27b9`.
+
+FAKE-08: https://github.com/jtothebell/fake-08 — MIT licensed. Its embedded
+dependencies have separate notices in its `LICENSE.MD`. This repository does
+not include an emulator binary or redistribute FAKE-08 source; contributors
+must obtain the upstream source and preserve the license notices when packaging.
+
+### Remaining for a playable release
+
+1. Build all upstream FAKE-08 `Vm`, Lua, graphics, audio and cartridge components using a MIPS C++17 toolchain compatible with the device's **NaN2008** ABI and glibc.
+2. Link `fake08_main.cpp`, `fake08_host.cpp`, `q2_platform.c` and `cart_browser.c` together. Exclude `cart_browser_probe.c` (it defines the preview `q2_main`).
+3. Validate memory requirements, performance, touch/physical-button mapping and frame pacing with a legally shared test cartridge on a Q2.
+4. Enable stereo ALSA sound after basic graphics/gameplay work.
+
+Keep this project separate from `q2-arcade`. Do not rename a browser preview ZIP as an emulator release.
+
+## Earlier Femto-8 investigation
 
 Upstream [femto8](https://github.com/benbaker76/femto8) is MIT-licensed, but its C runtime includes Lua, libc filesystem functions and large work buffers. To run cartridges on the Q2, we need a MIPS32 userspace C library/sysroot and a Q2 backend in upstream `p8_emu.c`/`p8_input.c`. The current freestanding Q2 compiler is enough for the menu but **cannot link the full runtime**. Once integrated, use `q2_cart_path()` with femto8's existing `p8_load()` and then `p8_run()`. Also replace SDL initialization/frame presentation and confirm actual free RAM on Q2 hardware. Audio and full six-button mapping are separate tasks.
 
