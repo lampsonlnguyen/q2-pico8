@@ -81,13 +81,13 @@ extern "C" int q2_main(void) {
     int result=0;
     {
         Host host;
-        PicoRam memory;
-        memory.Reset();
-        Audio audio(&memory);
         Logger_Initialize(host.logFilePrefix());
-        Vm vm(&host,&memory,nullptr,nullptr,&audio);
+        /* Vm creates and owns its Memory/Graphics/Input/Audio dependencies.
+         * Passing stack allocations with null Graphics/Input makes upstream
+         * _cleanupDeps true and causes an invalid free on shutdown. */
+        Vm vm(&host,nullptr,nullptr,nullptr,nullptr);
         host.setUpPaletteColors();
-        host.oneTimeSetup(&audio);
+        host.oneTimeSetup(nullptr);
         if(host.shouldQuit())result=1;
         else{
             host.setTargetFps(30);
