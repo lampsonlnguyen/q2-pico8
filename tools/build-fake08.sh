@@ -22,7 +22,7 @@ mkdir -p "$out" dist/.pico8
 includes=(-Isrc "-I$src/source" "-I$src/libs/z8lua"
           "-I$src/libs/miniz" "-I$src/libs/lodepng"
           "-I$src/libs/simpleini")
-flags=(-O2 -march=mips32r2 -mabi=32 -mfp64 -mnan=2008
+flags=(-O2 -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008
        -fno-rtti -ffunction-sections -fdata-sections
        "--sysroot=$sysroot")
 objects=()
@@ -64,6 +64,6 @@ objects+=("$out/fake08_host.o")
 "$cxx" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
-"$cxx" "${flags[@]}" -Wl,--gc-sections -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
+"$cxx" "${flags[@]}" -static-libstdc++ -Wl,--gc-sections -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
 file dist/.pico8/q2-pico8
 echo "Experimental FAKE-08 binary linked; Q2 hardware compatibility is NOT verified."
