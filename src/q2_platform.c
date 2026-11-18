@@ -103,13 +103,13 @@ q2_input q2_read_input(void) {
             } else if(code==170&&m[2]=='u') {
                 /* Back maps to PICO-8 pause/exit; two releases quit player. */
                 if(++back_releases>=2)input_state.quit=1;
-                else input_state.pressed|=Q2_X;
+                else input_state.pressed|=Q2_PAUSE;
 #ifdef Q2_GLIBC
             } else {
                 /* Physical Left/Right and Play controls reach the VM. */
                 unsigned bit=(code==222||code==172)?Q2_LEFT:
                              (code==223||code==173)?Q2_RIGHT:
-                             code==171?Q2_DOWN:0;
+                             code==171?Q2_X:0;
                 if(bit&&m[2]=='d'){
                     if(!(input_state.buttons&bit))input_state.pressed|=bit;
                     input_state.buttons|=bit;
