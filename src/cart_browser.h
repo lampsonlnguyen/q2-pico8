@@ -22,3 +22,5 @@ void q2_draw_cart_browser(uint8_t *screen,const q2_cart_list *list,int pending);
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* Q2_CART_BROWSER_H */
