@@ -78,32 +78,35 @@ extern "C" int q2_main(void) {
 #else
     if(!pick_cart(path,sizeof path))return 0;
 #endif
-    Host host;
-    PicoRam memory;
-    memory.Reset();
-    Audio audio(&memory);
-    Logger_Initialize(host.logFilePrefix());
-    Vm vm(&host,&memory,nullptr,nullptr,&audio);
-    host.setUpPaletteColors();
-    host.oneTimeSetup(&audio);
-    if(host.shouldQuit()){Logger_Exit();return 1;}
-    host.setTargetFps(30);
-    vm.SetCartList(host.listcarts());
-    /* FAKE-08 prepends Host::getCartDirectory() to its LoadCart argument.
-     * Pass the filename only; an absolute Q2 path becomes a broken double path. */
-    const char *filename=path;
-    for(const char *p=path;*p;++p)if(*p=='/')filename=p+1;
-    if(!vm.LoadCart(filename,false)){
-        /* Never silently replace an invalid cartridge with the BIOS game. */
+    int result=0;
+    {
+        Host host;
+        PicoRam memory;
+        memory.Reset();
+        Audio audio(&memory);
+        Logger_Initialize(host.logFilePrefix());
+        Vm vm(&host,&memory,nullptr,nullptr,&audio);
+        host.setUpPaletteColors();
+        host.oneTimeSetup(&audio);
+        if(host.shouldQuit())result=1;
+        else{
+            host.setTargetFps(30);
+            vm.SetCartList(host.listcarts());
+            /* FAKE-08's Cart opens files under Host::getCartDirectory().
+             * Pass only the name chosen by the Q2 cartridge browser. */
+            const char *filename=path;
+            for(const char *p=path;*p;++p)if(*p=='/')filename=p+1;
+            if(!vm.LoadCart(filename,false))result=2;
+            else{
+                vm.vm_run();
+                vm.GameLoop();
+            }
+        }
         vm.CloseCart();
         host.oneTimeCleanup();
-        Logger_Exit();
-        return 2;
+        /* Vm/Audio/Host destructors must run before Logger_Exit(),
+         * which closes stderr through FAKE-08's Logger_Initialize. */
     }
-    vm.vm_run();
-    vm.GameLoop();
-    vm.CloseCart();
-    host.oneTimeCleanup();
     Logger_Exit();
-    return 0;
+    return result;
 }
