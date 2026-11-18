@@ -33,8 +33,8 @@ static int pick_cart(char *path,unsigned cap){
         q2_input input=q2_read_input();
         if(input.quit||(input.pressed&Q2_X))break;
         if(input.wheel&&carts.count){
-            int direction=input.wheel>0?1:-1;
-            carts.selected=(carts.selected+carts.count+(unsigned)direction)%carts.count;
+            if(input.wheel>0)carts.selected=(carts.selected+1u)%carts.count;
+            else carts.selected=(carts.selected+carts.count-1u)%carts.count;
             dirty=1;
         }
         if(input.pressed&Q2_O){
