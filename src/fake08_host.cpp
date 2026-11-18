@@ -85,7 +85,8 @@ InputState_t Host::scanInput() {
     if(q.pressed&Q2_UP)down|=P8_KEY_UP;
     if(q.pressed&Q2_DOWN)down|=P8_KEY_DOWN;
     if(q.pressed&Q2_O)down|=P8_KEY_O;
-    if(q.pressed&Q2_X)down|=P8_KEY_PAUSE;
+    if(q.pressed&Q2_PAUSE)down|=P8_KEY_PAUSE;
+    if(q.pressed&Q2_X)down|=P8_KEY_X;
     if(q.buttons&Q2_LEFT)held|=P8_KEY_LEFT;
     if(q.buttons&Q2_RIGHT)held|=P8_KEY_RIGHT;
     if(q.buttons&Q2_UP)held|=P8_KEY_UP;
