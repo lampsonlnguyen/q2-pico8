@@ -40,7 +40,8 @@ Host::Host(int windowWidth, int windowHeight) {
     _cartDirectory = cart_dir;
     _logFilePrefix = data_dir;
 #ifdef Q2_FAKE08_SMOKE
-    _logFilePrefix = "/tmp/"; /* Log errors on host CI without the Q2 SD mount. */
+    _cartDirectory = "tests";
+    _logFilePrefix = "/tmp/"; /* Host test uses an authored cartridge, not the SD card. */
 #endif
     _customBiosLua = "cartpath = \"/mnt/mmc/.pico8/carts/\"\n"
                      "selectbtn = \"o\"\n"
