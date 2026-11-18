@@ -39,6 +39,9 @@ Host::Host(int windowWidth, int windowHeight) {
     (void)windowHeight;
     _cartDirectory = cart_dir;
     _logFilePrefix = data_dir;
+#ifdef Q2_FAKE08_SMOKE
+    _logFilePrefix = "/tmp/"; /* Log errors on host CI without the Q2 SD mount. */
+#endif
     _customBiosLua = "cartpath = \"/mnt/mmc/.pico8/carts/\"\n"
                      "selectbtn = \"o\"\n"
                      "pausebtn = \"back\"\n";
