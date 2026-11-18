@@ -41,6 +41,25 @@ The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 - `src/q2_platform.c`: renders normal 16-color and FAKE-08's alternate 128–143 colors using the per-frame screen palette map.
 - `.github/workflows/fake08-port.yml`: checks that the freestanding browser still builds and compiles the FAKE-08-specific C++ files against upstream revision `814991a2571ad3970e386cef48f3b148aa1c27b9`.
 
+### Trying the experimental MIPS engine build
+
+The optional cross-build script compiles FAKE-08's real interpreter and Lua
+runtime, the Q2 host and the cartridge picker. It does **not** run as part of
+the normal browser-preview build or publish an installable release.
+
+```sh
+git clone --recurse-submodules https://github.com/jtothebell/fake-08 ../fake-08
+# Obtain a device-compatible MIPS C++17 toolchain and firmware-derived sysroot.
+FAKE08_SRC=../fake-08 \
+Q2_SYSROOT="$HOME/.cache/q2/sysroot" \
+bash tools/build-fake08.sh
+```
+
+The experimental output, if cross-linking succeeds, is
+`dist/.pico8/q2-pico8`. A successful build alone does not certify
+on-device C++ ABI compatibility or game performance. The full upstream
+C++ engine *does* link in the native stub-based CI smoke test.
+
 FAKE-08: https://github.com/jtothebell/fake-08 — MIT licensed. Its embedded
 dependencies have separate notices in its `LICENSE.MD`. This repository does
 not include an emulator binary or redistribute FAKE-08 source; contributors
