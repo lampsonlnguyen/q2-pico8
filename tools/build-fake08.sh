@@ -45,12 +45,12 @@ for file in "$src/source/"*.cpp; do
     compile_cpp "$file"
 done
 for file in "$src/libs/lodepng/"*.cpp; do compile_cpp "$file"; done
-for file in "$src/libs/z8lua/"*.c; do
+for file in "$src/libs/z8lua/"*.c "$src/libs/miniz/"*.c \
+            "$src/libs/simpleini/"*.c; do
+    [ -f "$file" ] || continue
     case "${file##*/}" in lua.c|luac.c|ltests.c) continue;; esac
-    compile_c "$file"
-done
-for file in "$src/libs/miniz/"*.c "$src/libs/simpleini/"*.c; do
-    [ -f "$file" ] && compile_c "$file"
+    # Upstream compiles these .c sources in C++ mode.
+    compile_cpp "$file"
 done
 # Q2_GLIBC suppresses the freestanding browser's custom __start.
 for file in src/q2_platform.c src/cart_browser.c; do
