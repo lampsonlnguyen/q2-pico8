@@ -15,11 +15,14 @@ __asm__(".text\n.set noreorder\n.globl sc\nsc:\n"
         "addiu $29, $29, -32\nsw $8, 16($29)\nsw $9, 20($29)\n"
         "syscall\naddiu $29, $29, 32\n"
         "beqz $7, 1f\nnop\nsubu $2, $0, $2\n1: jr $31\nnop\n"
+#ifndef Q2_GLIBC
         ".globl __start\n__start:\n"
         "lw $4, 0($29)\naddiu $5, $29, 4\nli $8, -8\n"
         "and $29, $29, $8\naddiu $29, $29, -32\n"
         "jal q2_main\nnop\nmove $4, $2\nli $2, 4246\nsyscall\n"
-        "1: b 1b\nnop\n.set reorder\n");
+        "1: b 1b\nnop\n"
+#endif
+        ".set reorder\n");
 
 enum { SYS_CLOSE=4006, SYS_OPEN=4005, SYS_UNLINK=4010, SYS_IOCTL=4054,
        SYS_MMAP=4090, SYS_MUNMAP=4091, SYS_BIND=4169, SYS_RECV=4175,
