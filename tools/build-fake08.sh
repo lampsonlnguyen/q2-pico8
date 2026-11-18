@@ -79,7 +79,7 @@ done
 "$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_host.cpp -o "$out/fake08_host.o"
 objects+=("$out/fake08_host.o")
-"$cxx" "${flags[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
+"$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
 "$cxx" "${flags[@]}" "${old_lib[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread \
