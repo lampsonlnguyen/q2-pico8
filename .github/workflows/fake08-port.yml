@@ -16,6 +16,7 @@ jobs:
       - name: Verify existing freestanding Q2 browser
         run: |
           bash -n tools/build-fake08.sh
+          bash -n tools/test-fake08-link.sh
           make check
       - name: Get pinned FAKE-08 upstream sources
         run: |
@@ -38,3 +39,5 @@ jobs:
             -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
             -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
             -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
+      - name: Link the full FAKE-08 game engine against Q2 host ABI
+        run: FAKE08_SRC=/tmp/fake-08 bash tools/test-fake08-link.sh
