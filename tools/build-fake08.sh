@@ -22,6 +22,17 @@ mkdir -p "$out" dist/.pico8
 includes=(-Isrc "-I$src/source" "-I$src/libs/z8lua"
           "-I$src/libs/miniz" "-I$src/libs/lodepng"
           "-I$src/libs/simpleini")
+# The firmware's glibc is 2.28. GCC11 libstdc++ from Ubuntu Noble needs
+# glibc 2.34+ (__clock_gettime64, __libc_single_threaded, ...).
+# Use Debian Buster's GCC8 C++ headers/static runtime, compatible with 2.28.
+old_cxx=()
+old_lib=()
+if [ -n "${Q2_GCC8_ROOT:-}" ]; then
+    test -f "$Q2_GCC8_ROOT/usr/lib/gcc/mipsel-linux-gnu/8/libstdc++.a"
+    old_cxx=(-nostdinc++ -isystem "$Q2_GCC8_ROOT/usr/include/c++/8"
+             -isystem "$Q2_GCC8_ROOT/usr/include/mipsel-linux-gnu/c++/8")
+    old_lib=(-L"$Q2_GCC8_ROOT/usr/lib/gcc/mipsel-linux-gnu/8")
+fi
 flags=(-O2 -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008
        -fno-rtti -ffunction-sections -fdata-sections
        "--sysroot=$sysroot")
@@ -29,7 +40,7 @@ objects=()
 compile_cpp(){
     local input="$1" name
     name="$(echo "$input" | tr '/.' '__')"
-    "$cxx" "${flags[@]}" "${includes[@]}" -std=gnu++17 -c "$input" -o "$out/$name.o"
+    "$cxx" "${flags[@]}" "${old_cxx[@]}" "${includes[@]}" -std=gnu++17 -c "$input" -o "$out/$name.o"
     objects+=("$out/$name.o")
 }
 compile_c(){
@@ -58,13 +69,13 @@ for file in src/q2_platform.c src/cart_browser.c; do
     "$cc" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu11 -c "$file" -o "$out/$name.o"
     objects+=("$out/$name.o")
 done
-"$cxx" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
+"$cxx" "${flags[@]}" "${old_cxx[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_host.cpp -o "$out/fake08_host.o"
 objects+=("$out/fake08_host.o")
 "$cxx" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
-"$cxx" "${flags[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread \
+"$cxx" "${flags[@]}" "${old_lib[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread \
     -Wl,--no-as-needed -l:ld-linux-mipsn8.so.1
 # GCC's legacy-NaN startup archive can overwrite ELF NaN2008 e_flags.
 # This is an experimental ABI bridge, not proof of mixed-lib correctness.
