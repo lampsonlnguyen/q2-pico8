@@ -18,10 +18,16 @@ for file in "$src/source/"*.cpp "$src/libs/lodepng/"*.cpp \
         "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")
 done
+# z8lua is a C++-compiled Lua fork despite its .c filenames.
 for file in "$src/libs/z8lua/"*.c "$src/libs/miniz/"*.c \
-            "$src/libs/simpleini/"*.c src/cart_browser.c tests/q2_fake08_stub.c; do
+            "$src/libs/simpleini/"*.c; do
     [ -f "$file" ] || continue
     case "${file##*/}" in lua.c|luac.c|ltests.c) continue;; esac
+    out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
+    g++ -O0 -std=gnu++17 -fno-exceptions -DQ2_GLIBC "${includes[@]}" -c "$file" -o "$out"
+    objects+=("$out")
+done
+for file in src/cart_browser.c tests/q2_fake08_stub.c; do
     out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
     gcc -O0 -std=gnu11 -DQ2_GLIBC "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")
