@@ -73,7 +73,7 @@ extern "C" int q2_main(void) {
 #ifdef Q2_FAKE08_SMOKE
     /* Run a locally authored test cartridge against the actual FAKE-08 VM,
      * using a simulated framebuffer and input instead of a Q2 device. */
-    const char *demo="tests/demo.p8";
+    const char *demo="demo.p8";
     for(unsigned i=0;demo[i]&&i+1<sizeof path;i++)path[i]=demo[i];
 #else
     if(!pick_cart(path,sizeof path))return 0;
@@ -89,7 +89,11 @@ extern "C" int q2_main(void) {
     if(host.shouldQuit()){Logger_Exit();return 1;}
     host.setTargetFps(30);
     vm.SetCartList(host.listcarts());
-    vm.LoadCart(path,true);
+    /* FAKE-08 prepends Host::getCartDirectory() to its LoadCart argument.
+     * Pass the filename only; an absolute Q2 path becomes a broken double path. */
+    const char *filename=path;
+    for(const char *p=path;*p;++p)if(*p=='/')filename=p+1;
+    vm.LoadCart(filename,true);
     vm.vm_run();
     vm.GameLoop();
     vm.CloseCart();
