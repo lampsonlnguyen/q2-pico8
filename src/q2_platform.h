@@ -24,3 +24,5 @@ void q2_close(void);
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* Q2_FEMTO8_PLATFORM_H */
