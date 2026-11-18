@@ -18,6 +18,9 @@ jobs:
           bash -n tools/build-fake08.sh
           bash -n tools/test-fake08-link.sh
           make check
+          clang --target=mipsel-linux-gnu -march=mips32r2 -mabi=32 \
+            -mfp64 -mnan=2008 -ffreestanding -std=c11 \
+            -DQ2_GLIBC -Isrc -fsyntax-only src/q2_platform.c
       - name: Get pinned FAKE-08 upstream sources
         run: |
           git init -q /tmp/fake-08
