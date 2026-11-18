@@ -23,7 +23,7 @@ includes=(-Isrc "-I$src/source" "-I$src/libs/z8lua"
           "-I$src/libs/miniz" "-I$src/libs/lodepng"
           "-I$src/libs/simpleini")
 flags=(-O2 -march=mips32r2 -mabi=32 -mfp64 -mnan=2008
-       -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections
+       -fno-rtti -ffunction-sections -fdata-sections
        "--sysroot=$sysroot")
 objects=()
 compile_cpp(){
