@@ -90,7 +90,6 @@ extern "C" int q2_main(void) {
         host.oneTimeSetup(nullptr);
         if(host.shouldQuit())result=1;
         else{
-            host.setTargetFps(30);
             vm.SetCartList(host.listcarts());
             /* FAKE-08's Cart opens files under Host::getCartDirectory().
              * Pass only the name chosen by the Q2 cartridge browser. */
@@ -99,6 +98,7 @@ extern "C" int q2_main(void) {
             if(!vm.LoadCart(filename,false))result=2;
             else{
                 vm.vm_run();
+                host.setTargetFps(vm.GetTargetFps());
                 vm.GameLoop();
             }
         }
