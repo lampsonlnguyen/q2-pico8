@@ -58,7 +58,6 @@ jobs:
         run: FAKE08_SRC=/tmp/fake-08 bash tools/test-fake08-link.sh
 
   device:
-    needs: bridge
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
