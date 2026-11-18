@@ -31,7 +31,7 @@ static int pick_cart(char *path,unsigned cap){
     int chosen=0;
     while(1){
         q2_input input=q2_read_input();
-        if(input.quit||(input.pressed&Q2_X))break;
+        if(input.quit||(input.pressed&Q2_PAUSE))break;
         if(input.wheel&&carts.count){
             if(input.wheel>0)carts.selected=(carts.selected+1u)%carts.count;
             else carts.selected=(carts.selected+carts.count-1u)%carts.count;
