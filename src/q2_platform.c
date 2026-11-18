@@ -116,12 +116,14 @@ static void copy_page(q2_pixel *dst,const q2_pixel *src) {
             dst[x*stride+y]=src[x*stride+y];
 }
 
-void q2_present(const uint8_t *pixels,const uint32_t palette[16]) {
+/* FAKE-08 passes a 16-entry screen map whose values may address
+ * the 128..143 alternate colors. Both video paths retain 2x scaling and
+ * the Q2 framebuffer's rotated bottom-up storage. */
+static void present_mapped(const uint8_t *pixels,const uint8_t *map,
+                           const uint32_t *palette) {
     if(!memory||!pixels||!palette)return;
     unsigned page=can_pan?(visible?0:Q2_WIDTH):visible;
     q2_pixel *dest=memory+page*stride;
-    /* 2x integer scaling: 256 x 256 centered on 375 x 320.
-     * x is rotated framebuffer row; y index is bottom-up. */
     for(unsigned x=0;x<Q2_WIDTH;++x) {
         q2_pixel *col=dest+x*stride;
         int sx=((int)x-(Q2_WIDTH-256)/2)/2;
@@ -132,16 +134,29 @@ void q2_present(const uint8_t *pixels,const uint32_t palette[16]) {
                y>=(Q2_HEIGHT-256)/2 && y<(Q2_HEIGHT-256)/2+256) {
                 unsigned off=(unsigned)sy*64u+(unsigned)sx/2u;
                 uint8_t data=pixels[off];
-                argb=0xff000000u|palette[(sx&1)?data>>4:data&15];
+                unsigned color=(sx&1)?(data>>4):(data&15u);
+                /* FAKE-08 defines the display palette as 0..15 or 128..143.
+                 * Mask with 0x8f exactly as its existing FunKey host does. */
+                unsigned mapped=map?(map[color]&0x8fu):color;
+                argb=0xff000000u|palette[mapped];
             }
             col[Q2_HEIGHT-1-y]=argb;
         }
     }
     if(can_pan){
         var[5]=page;
-        if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0)) visible=page;
+        if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0))visible=page;
         else {can_pan=0;copy_page(memory+visible*stride,dest);}
     }
+}
+void q2_present(const uint8_t *pixels,const uint32_t palette[16]) {
+    present_mapped(pixels,0,palette);
+}
+void q2_present_fake08(const uint8_t *pixels,
+                       const uint8_t screen_map[16],
+                       const uint32_t colors[144]) {
+    if(!screen_map)return;
+    present_mapped(pixels,screen_map,colors);
 }
 
 void q2_close(void) {
