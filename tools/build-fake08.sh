@@ -33,9 +33,16 @@ if [ -n "${Q2_GCC8_ROOT:-}" ]; then
              -isystem "$Q2_GCC8_ROOT/usr/include/mipsel-linux-gnu/c++/8")
     old_lib=(-L"$Q2_GCC8_ROOT/usr/lib/gcc/mipsel-linux-gnu/8")
 fi
+# GCC cross packages bring headers from modern glibc; those refer to
+# __time64 and __isoc23_* missing from the Q2's glibc 2.28. Override the
+# entire C header search rather than just the linker's library search.
+gcc_include="$("$cc" -print-file-name=include)"
 flags=(-O2 -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008
        -fno-rtti -ffunction-sections -fdata-sections
-       "--sysroot=$sysroot")
+       "--sysroot=$sysroot" -nostdinc
+       -isystem "$gcc_include"
+       -isystem "$sysroot/usr/include"
+       -isystem "$sysroot/usr/include/mipsel-linux-gnu")
 objects=()
 compile_cpp(){
     local input="$1" name
