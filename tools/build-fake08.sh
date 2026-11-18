@@ -65,5 +65,8 @@ objects+=("$out/fake08_host.o")
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
 "$cxx" "${flags[@]}" -static-libstdc++ -Wl,--no-warn-mismatch -Wl,--gc-sections -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
+# GCC's legacy-NaN startup archive can overwrite ELF NaN2008 e_flags.
+# This is an experimental ABI bridge, not proof of mixed-lib correctness.
+python3 tools/mark-mips-nan2008.py dist/.pico8/q2-pico8
 file dist/.pico8/q2-pico8
 echo "Experimental FAKE-08 binary linked; Q2 hardware compatibility is NOT verified."
