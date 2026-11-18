@@ -64,6 +64,6 @@ objects+=("$out/fake08_host.o")
 "$cxx" "${flags[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
-"$cxx" "${flags[@]}" -static-libstdc++ -Wl,--gc-sections -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
+"$cxx" "${flags[@]}" -static-libstdc++ -Wl,--no-warn-mismatch -Wl,--gc-sections -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread
 file dist/.pico8/q2-pico8
 echo "Experimental FAKE-08 binary linked; Q2 hardware compatibility is NOT verified."
