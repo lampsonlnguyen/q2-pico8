@@ -4,11 +4,13 @@
  */
 #include "q2_platform.h"
 long sc(long n,long a,long b,long c,long d,long e,long f);
+#ifndef Q2_GLIBC
 /* Clang may lower fixed-size struct initialization to memcpy. */
 void *memcpy(void *dest,const void *src,__SIZE_TYPE__ n) {
     unsigned char *d=dest;const unsigned char *s=src;
     while(n--)*d++=*s++;return dest;
 }
+#endif
 __asm__(".text\n.set noreorder\n.globl sc\nsc:\n"
         "move $2, $4\nmove $4, $5\nmove $5, $6\nmove $6, $7\n"
         "lw $7, 16($29)\nlw $8, 20($29)\nlw $9, 24($29)\n"
@@ -34,7 +36,23 @@ static int fb=-1, sock=-1;
 static unsigned var[40],fix[17],stride,front,visible,rows,can_pan;
 static q2_pixel *memory;
 static q2_input input_state;
-static unsigned back_releases;
+#ifdef Q2_GLIBC
+static unsigned physical_buttons, touch_button, back_at, back_pending;
+
+enum { CONTROL_SIZE=32, CONTROL_X_LEFT=12, CONTROL_X_RIGHT=331 };
+static const struct {
+    int x, y;
+    unsigned key;
+    uint8_t glyph[7];
+} controls[] = {
+    {CONTROL_X_LEFT, 70, Q2_UP,    {8,28,62,8,8,8,8}},
+    {CONTROL_X_LEFT, 120,Q2_LEFT,  {0,8,16,62,16,8,0}},
+    {CONTROL_X_LEFT, 170,Q2_RIGHT, {0,8,4,62,4,8,0}},
+    {CONTROL_X_LEFT, 220,Q2_DOWN,  {8,8,8,8,62,28,8}},
+    {CONTROL_X_RIGHT,120,Q2_O,     {0,28,34,34,34,28,0}},
+    {CONTROL_X_RIGHT,170,Q2_X,     {0,34,20,8,20,34,0}},
+};
+#endif
 
 unsigned q2_millis(void) {
     long ts[2]={0};
@@ -43,6 +61,10 @@ unsigned q2_millis(void) {
 }
 
 int q2_open(void) {
+    input_state=(q2_input){0};
+#ifdef Q2_GLIBC
+    physical_buttons=touch_button=back_pending=0;
+#endif
     fb=(int)sc(SYS_OPEN,(long)"/dev/fb0",O_RDWR|O_CLOEXEC,0,0,0,0);
     if(fb<0) return -1;
     if(sc(SYS_IOCTL,fb,FB_VSCREEN,(long)var,0,0,0) ||
@@ -93,51 +115,61 @@ q2_input q2_read_input(void) {
             /* Wheel is relative steering: synthesize brief D-pad presses. */
             if(w>0)input_state.pressed|=Q2_RIGHT;
             if(w<0)input_state.pressed|=Q2_LEFT;
-        } else if(m[0]=='k'&&m[1]==' '&&m[3]==' ') {
+        } else if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
             int code=number(m+4);
-            if(code==218) {
-                if(m[2]=='d') {
-                    if(!(input_state.buttons&Q2_O))input_state.pressed|=Q2_O;
-                    input_state.buttons|=Q2_O;
-                } else if(m[2]=='u')input_state.buttons&=~Q2_O;
-            } else if(code==170&&m[2]=='u') {
-                /* Back maps to PICO-8 pause/exit; two releases quit player. */
-                if(++back_releases>=2)input_state.quit=1;
+            if(code==170&&m[2]=='u') {
+#ifdef Q2_GLIBC
+                unsigned now=q2_millis();
+                if(back_pending&&now-back_at<=500u)input_state.quit=1;
                 else input_state.pressed|=Q2_PAUSE;
-#ifdef Q2_GLIBC
-            } else {
-                /* Physical Left/Right and Play controls reach the VM. */
-                unsigned bit=(code==222||code==172)?Q2_LEFT:
-                             (code==223||code==173)?Q2_RIGHT:
-                             code==171?Q2_X:0;
-                if(bit&&m[2]=='d'){
-                    if(!(input_state.buttons&bit))input_state.pressed|=bit;
-                    input_state.buttons|=bit;
-                }else if(bit&&m[2]=='u'){
-                    if(!(input_state.buttons&bit))input_state.pressed|=bit;
-                    input_state.buttons&=~bit;
-                }
+                back_pending=1;
+                back_at=now;
+#else
+                input_state.pressed|=Q2_PAUSE;
 #endif
-            }
-        } else if(m[0]=='t'&&m[1]==' '&&m[2]=='d'&&m[3]==' ') {
+            } else {
+                unsigned bit=code==218?Q2_O:0;
 #ifdef Q2_GLIBC
-            /* Touch regions supplement the compact Q2 physical controls:
-             * left/right sides steer, top/bottom navigate, center activates. */
-            int x=number(m+4);
-            const char *y=m+4;
-            while(*y&&*y!=' ')++y;
-            if(*y==' ')++y;
-            int py=number(y);
-            if(x>=0&&x<Q2_WIDTH&&py>=0&&py<Q2_HEIGHT){
-                unsigned bit=x<95?Q2_LEFT:x>=280?Q2_RIGHT:
-                             py<90?Q2_UP:py>=235?Q2_DOWN:Q2_O;
-                input_state.pressed|=bit;
+                if(code==222||code==172)bit=Q2_LEFT;
+                if(code==223||code==173)bit=Q2_RIGHT;
+                if(code==171)bit=Q2_X;
+                unsigned *held=&physical_buttons;
+#else
+                unsigned *held=&input_state.buttons;
+#endif
+                if(m[2]=='d'){
+                    input_state.pressed|=bit&~*held;
+                    *held|=bit;
+                }else if(m[2]=='u')*held&=~bit;
+            }
+        } else if(m[0]=='t'&&m[1]==' ') {
+#ifdef Q2_GLIBC
+            if(m[2]=='u'){
+                touch_button=0;
+            }else if(n>=6&&m[2]=='d'&&m[3]==' '){
+                int x=number(m+4);
+                const char *y=m+4;
+                while(*y&&*y!=' ')++y;
+                if(!*y)continue;
+                int py=number(y+1);
+                touch_button=0;
+                for(unsigned i=0;i<sizeof controls/sizeof controls[0];++i){
+                    if(x>=controls[i].x&&x<controls[i].x+CONTROL_SIZE&&
+                       py>=controls[i].y&&py<controls[i].y+CONTROL_SIZE){
+                        touch_button=controls[i].key;
+                        input_state.pressed|=touch_button;
+                        break;
+                    }
+                }
             }
 #else
-            input_state.pressed|=Q2_O;
+            if(m[2]=='d')input_state.pressed|=Q2_O;
 #endif
         }
     }
+#ifdef Q2_GLIBC
+    input_state.buttons=physical_buttons|touch_button;
+#endif
     return input_state;
 }
 
@@ -174,6 +206,22 @@ static void present_mapped(const uint8_t *pixels,const uint8_t *map,
             col[Q2_HEIGHT-1-y]=argb;
         }
     }
+#ifdef Q2_GLIBC
+    if(map){
+        for(unsigned i=0;i<sizeof controls/sizeof controls[0];++i){
+            unsigned active=input_state.buttons&controls[i].key;
+            for(int x=0;x<CONTROL_SIZE;++x){
+                q2_pixel *col=dest+(controls[i].x+x)*stride;
+                for(int y=0;y<CONTROL_SIZE;++y){
+                    unsigned ink=x>=9&&x<23&&y>=9&&y<23&&
+                        (controls[i].glyph[(y-9)/2]&(1u<<(6-(x-9)/2)));
+                    col[Q2_HEIGHT-1-controls[i].y-y]=ink?0xffeeeeeeu:
+                        active?0xff326977u:0xff263247u;
+                }
+            }
+        }
+    }
+#endif
     if(can_pan){
         var[5]=page;
         if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0))visible=page;

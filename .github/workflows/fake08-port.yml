@@ -1,7 +1,7 @@
 name: Q2 PICO-8 bridge
 on:
   push:
-    branches: [main]
+    branches: [main, q2-playable-controls]
   pull_request:
   workflow_dispatch:
 concurrency:
@@ -110,25 +110,23 @@ jobs:
         run: bash tools/build-fake08.sh
       - name: Check MIPS architecture and runtime dependencies
         run: |
-          file dist/.pico8/q2-pico8
-          readelf -h dist/.pico8/q2-pico8
-          readelf -h dist/.pico8/q2-pico8 | grep -i nan2008
-          readelf -l dist/.pico8/q2-pico8 | grep -F '/lib/ld-linux-mipsn8.so.1'
-          readelf -A dist/.pico8/q2-pico8
-          readelf -d dist/.pico8/q2-pico8 | grep NEEDED || true
+          file dist/player/.pico8/q2-pico8
+          readelf -h dist/player/.pico8/q2-pico8
+          readelf -h dist/player/.pico8/q2-pico8 | grep -i nan2008
+          readelf -l dist/player/.pico8/q2-pico8 | grep -F '/lib/ld-linux-mipsn8.so.1'
+          readelf -A dist/player/.pico8/q2-pico8
+          readelf -d dist/player/.pico8/q2-pico8 | grep NEEDED || true
       - name: Smoke-test MIPS executable startup with firmware loader
         run: |
           set -euxo pipefail
           # No Q2 framebuffer in the runner; the app should return cleanly
           # from q2_open(). This verifies loader, libc and static C++ startup.
-          timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/.pico8/q2-pico8
-      - name: Make install ZIP with real FAKE-08 executable
+          timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/player/.pico8/q2-pico8
+      - name: Verify playable install ZIP
         run: |
-          cp q2app dist/.pico8/q2app
-          sed -i 's/PICO-8 Browser Preview/PICO-8/' dist/.pico8/q2app
-          mkdir -p dist/.pico8/carts
-          touch dist/.pico8/carts/.keep
-          (cd dist && zip -q -r q2-pico8-playable-experimental.zip .pico8)
+          unzip -t dist/q2-pico8-playable-experimental.zip
+          unzip -p dist/q2-pico8-playable-experimental.zip .pico8/q2app | grep -Fx 'name=PICO-8'
+          unzip -p dist/q2-pico8-playable-experimental.zip .pico8/q2-pico8 | cmp - dist/player/.pico8/q2-pico8
       - uses: actions/upload-artifact@v6
         with:
           name: q2-pico8-playable-experimental

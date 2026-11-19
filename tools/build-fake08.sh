@@ -8,17 +8,24 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 src="${FAKE08_SRC:-../fake-08}"
-sysroot="${Q2_SYSROOT:-$HOME/.cache/q2/sysroot}"
+sysroot="${Q2_SYSROOT:-${SYSROOT:-$HOME/.cache/q2/sysroot}}"
 cxx="${Q2_CXX:-mipsel-linux-gnu-g++}"
 cc="${Q2_CC:-mipsel-linux-gnu-gcc}"
 [ -f "$src/source/vm.cpp" ] || { echo "Missing FAKE-08 sources in $src" >&2; exit 2; }
 [ -f "$src/libs/z8lua/lua.h" ] || { echo "Run git submodule update --init in $src" >&2; exit 2; }
-[ -f "$sysroot/lib/libc.so.6" ] || { echo "Missing Q2 glibc sysroot at $sysroot" >&2; exit 2; }
+for library in libc.so.6 ld-linux-mipsn8.so.1; do
+    if [ ! -f "$sysroot/lib/$library" ]; then
+        echo "Missing $sysroot/lib/$library. Set Q2_SYSROOT or SYSROOT to your Q2 firmware sysroot." >&2
+        exit 2
+    fi
+done
 command -v "$cxx" >/dev/null
 command -v "$cc" >/dev/null
 
 out=build/fake08
-mkdir -p "$out" dist/.pico8
+stage=dist/player
+binary="$stage/.pico8/q2-pico8"
+mkdir -p "$out" "$stage/.pico8/carts"
 includes=(-Isrc "-I$src/source" "-I$src/libs/z8lua"
           "-I$src/libs/miniz" "-I$src/libs/lodepng"
           "-I$src/libs/simpleini")
@@ -82,10 +89,18 @@ objects+=("$out/fake08_host.o")
 "$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
     -c src/fake08_main.cpp -o "$out/fake08_main.o"
 objects+=("$out/fake08_main.o")
-"$cxx" "${flags[@]}" "${old_lib[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o dist/.pico8/q2-pico8 "${objects[@]}" -lm -lpthread \
+"$cxx" "${flags[@]}" "${old_lib[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o "$binary" "${objects[@]}" -lm -lpthread \
     -Wl,--no-as-needed -l:ld-linux-mipsn8.so.1
 # GCC's legacy-NaN startup archive can overwrite ELF NaN2008 e_flags.
 # This is an experimental ABI bridge, not proof of mixed-lib correctness.
-python3 tools/mark-mips-nan2008.py dist/.pico8/q2-pico8
-file dist/.pico8/q2-pico8
-echo "Experimental FAKE-08 binary linked; Q2 hardware compatibility is NOT verified."
+python3 tools/mark-mips-nan2008.py "$binary"
+file "$binary"
+sed 's/^name=.*/name=PICO-8/' q2app > "$stage/.pico8/q2app"
+: > "$stage/.pico8/carts/.keep"
+cp "$src/LICENSE.MD" "$stage/.pico8/FAKE-08-LICENSE.md"
+(
+    cd "$stage"
+    zip -q -FS ../q2-pico8-playable-experimental.zip \
+        .pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md
+)
+echo "Created dist/q2-pico8-playable-experimental.zip"

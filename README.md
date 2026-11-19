@@ -1,45 +1,35 @@
 # PICO-8 player for Q2 Pod — FAKE-08 port in progress
 
-**Status (stage 3):** The production/default installable ZIP remains the **working Q2 cartridge-browser preview**, not a playable emulator. The first *real FAKE-08* C++ engine integration has been implemented separately under `src/fake08_host.cpp` and `src/fake08_main.cpp`: it uses the existing browser to select a cartridge, then constructs FAKE-08's actual VM and calls `LoadCart` / `GameLoop`. The Q2 framebuffer bridge now supports FAKE-08's 144-color extended display palette. GitHub Actions tests the C++ adapter against a pinned upstream source revision.
+The experimental player runs cartridges through the FAKE-08 VM. The native
+smoke test runs an original cartridge and checks that it renders frames.
+The physical Q2 still needs a gameplay test. Audio is currently disabled.
 
-**Do not confuse the CI C++ syntax check with a working Q2 executable.** A compatible MIPS C++17 standard library/runtime and a Q2 firmware sysroot are still needed to compile/link this engine and verify gameplay on-device. The default `make` target intentionally remains unchanged so users don't install an untested player.
+## Install the experimental player
 
-## Install and add cartridge files
+1. Open [Q2 PICO-8 bridge runs](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml)
+   and download the **q2-pico8-playable-experimental** artifact from a successful
+   run. Unwrap the artifact to get the install ZIP of the same name.
+2. Extract that install ZIP to the root of the microSD card. If you already
+   installed the browser preview, replace `.pico8/q2app` and
+   `.pico8/q2-pico8` and keep your existing carts.
+3. Copy cartridge files ending in `.p8` or `.p8.png` into
+   `/.pico8/carts/` on the card. The browser scans up to 64 files and skips
+   names over 59 bytes.
+4. Open **Library → Games → PICO-8**. Turn the wheel to select a cart and
+   press Center to start. Back exits the picker.
 
-1. Open [GitHub Actions](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml) and select the latest successful **Q2 PICO-8 bridge** run. Under **Artifacts**, download `q2-pico8-browser-preview`. Extract the downloaded artifact ZIP to obtain **`q2-femto8-browser-preview.zip`**. Alternatively, build locally using `make check` (requires `clang lld make zip unzip gcc file`).
-2. Extract the **contents of `q2-femto8-browser-preview.zip`** directly to the **root** of your Q2 Pod microSD card. Do not extract GitHub's Source code ZIP. The install ZIP contains `.pico8/q2app`, `.pico8/q2-pico8` and an empty `.pico8/carts/` directory.
-3. Add compatible `.p8` or `.p8.png` cartridge files to `.pico8/carts/` (only files in this folder are scanned).
-4. Launch **PICO-8 Browser Preview** from Library → Games.
-5. Rotate the wheel to select a game; Center displays the loader-not-ready notice. Press Back to exit. To rescan after copying games, relaunch the app. The list also refreshes periodically when the number of files changes.
+During gameplay, use the on-screen arrows and **O** / **X** buttons for
+held input. Center also sends **O**, Play sends **X**, and Previous/Next
+send Left/Right. The wheel sends brief Left/Right presses. Back opens the
+PICO-8 pause menu. Press Back twice within half a second to exit to Q2 Pod.
 
-```text
-SD-card/
-  .pico8/
-    q2app
-    q2-pico8
-    carts/
-      example.p8
-      example2.p8.png
-```
+If the app is missing, enable hidden files in your file manager and confirm
+`.pico8/q2app` and `.pico8/q2-pico8` are directly under the card root's
+`.pico8` folder. Reopen Library → Games after copying the files.
 
-### If PICO-8 does not appear in Library → Games
-
-Q2 Pod's scanner only lists a card game when all of the following are true:
-the SD root has a folder named exactly `.pico8`, that folder contains a
-readable `q2app` file with `game=1`, and the compiled MIPS binary named
-`q2-pico8` exists **in that same folder**. The app currently appears as
-**PICO-8 Browser Preview**, not just PICO-8.
-
-On Windows, enable **View → Show → Hidden items** to find `.pico8`.
-Check that you didn't accidentally create `microSD/q2-femto8-browser-preview/.pico8`
-or `microSD/.pico8/.pico8`, or copy only a ZIP into the card.
-Exit and reopen Library → Games after copying the files. If it is still
-missing, safely eject and reinsert the card, then restart the Q2.
-
-The browser preview **does not launch PICO-8 games**. The actual FAKE-08
-engine is still experimental and isn't included in this artifact.
-
-The browser scans the SD card directly using Linux `getdents64` and supports up to 64 files. Filenames over 59 bytes are skipped. An unsupported extension is ignored. The scanner and menu are written in freestanding C, and use the established Q2 framebuffer and game-socket protocol.
+`make check` builds and verifies the separate **PICO-8 Browser Preview**
+ZIP. Use it to test cartridge discovery on its own. Install the experimental
+player ZIP to run cartridges.
 
 ## Source files
 
@@ -72,8 +62,10 @@ Q2_SYSROOT="$HOME/.cache/q2/sysroot" \
 bash tools/build-fake08.sh
 ```
 
-The experimental output, if cross-linking succeeds, is
-`dist/.pico8/q2-pico8`. A successful build alone does not certify
+The experimental build produces `dist/q2-pico8-playable-experimental.zip`
+and stages its executable at `dist/player/.pico8/q2-pico8`. You can reuse the
+sysroot from q2-nes by exporting the same `SYSROOT` value. `Q2_SYSROOT`
+takes precedence when both are set. A successful build alone does not certify
 on-device C++ ABI compatibility or game performance. The full upstream
 C++ engine *does* link in the native stub-based CI smoke test.
 
@@ -82,14 +74,11 @@ dependencies have separate notices in its `LICENSE.MD`. This repository does
 not include an emulator binary or redistribute FAKE-08 source; contributors
 must obtain the upstream source and preserve the license notices when packaging.
 
-### Remaining for a playable release
+### Remaining device validation
 
-1. Build all upstream FAKE-08 `Vm`, Lua, graphics, audio and cartridge components using a MIPS C++17 toolchain compatible with the device's **NaN2008** ABI and glibc.
-2. Link `fake08_main.cpp`, `fake08_host.cpp`, `q2_platform.c` and `cart_browser.c` together. Exclude `cart_browser_probe.c` (it defines the preview `q2_main`).
-3. Validate memory requirements, performance, touch/physical-button mapping and frame pacing with a legally shared test cartridge on a Q2.
-4. Enable stereo ALSA sound after basic graphics/gameplay work.
-
-Keep this project separate from `q2-arcade`. Do not rename a browser preview ZIP as an emulator release.
+- Check cartridge loading, touch and physical controls, and frame pacing on
+  real Q2 hardware at both 30 and 60 FPS.
+- Bring up stereo ALSA sound using the Q2 audio path.
 
 ## Earlier Femto-8 investigation
 

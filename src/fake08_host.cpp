@@ -23,7 +23,6 @@ constexpr const char *cart_dir = "/mnt/mmc/.pico8/carts";
 constexpr const char *data_dir = "/mnt/mmc/.pico8/";
 uint32_t last_frame = 0;
 uint32_t target_ms = 33;
-uint32_t previous_input = 0;
 bool opened = false;
 bool stopped = false;
 
@@ -53,7 +52,6 @@ void Host::oneTimeSetup(Audio *audio) {
     opened = q2_open() == 0;
     stopped = !opened;
     last_frame = q2_millis();
-    previous_input = 0;
     mkdir("/mnt/mmc/.pico8/cdata", 0755);
 }
 void Host::oneTimeCleanup() {
@@ -94,9 +92,7 @@ InputState_t Host::scanInput() {
     if(q.buttons&Q2_O)held|=P8_KEY_O;
     if(q.buttons&Q2_X)held|=P8_KEY_X;
     held|=down;
-    /* Keep transient wheel events pressed for a single VM frame. */
-    previous_input=held;
-    (void)previous_input;
+    /* Preserve taps and wheel detents that began and ended within one frame. */
     return InputState_t {down,held,0,0,0,false,std::string()};
 }
 void Host::drawFrame(uint8_t *pixels,uint8_t *screenPaletteMap,uint8_t drawMode) {
