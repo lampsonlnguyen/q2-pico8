@@ -23,6 +23,9 @@ fail=0
 run_player() { # name cart max_frames script
     local name="$1" cart="$2" frames="$3" script="$4"
     local out="$OUTBASE/$name"
+    # Clean the scenario dir so stale frames/logs from an earlier run
+    # (e.g. a pre-fix BIOS frame) cannot pollute this run's evidence.
+    rm -rf "$out"
     mkdir -p "$out"
     echo "=== $name: cart=$cart frames=$frames script=$script ==="
     Q2_SIM_CART="$cart" Q2_SIM_MAX_FRAMES="$frames" \
@@ -31,10 +34,15 @@ run_player() { # name cart max_frames script
     local rc=${PIPESTATUS[0]}
     echo "$name exit=$rc" | tee -a "$out/run.log"
     echo "$rc" > "$out/exit_code"
+    # FAKE-08's Logger_Initialize freopen()s stderr to pico.log, so
+    # the sim's own log lines (cart errors, etc.) land there, not in
+    # run.log. Keep a per-scenario copy for the assertions below.
+    cp /mnt/mmc/.pico8/pico.log "$out/pico.log" 2>/dev/null || true
     return "$rc"
 }
 
 # --- 1. browser picker: wheel +1, then Centre ---
+rm -rf "$OUTBASE/browser"
 mkdir -p "$OUTBASE/browser"
 Q2_SIM_OUTDIR="$OUTBASE/browser" Q2_SIM_INPUT="$SIMDIR/scripts/browser.txt" \
     ./build/host-sim/browser-sim > "$OUTBASE/browser/browser.log" 2>&1
@@ -57,8 +65,21 @@ grep -q '"exit_reason": "double-back"' "$OUTBASE/input-controls/stats.json" \
 # --- 6. invalid carts must fail visibly ---
 run_player invalid-missing missing.p8 10 empty.txt; rc=$?
 [ $rc -eq 2 ] || { echo "FAIL: missing cart exit=$rc, expected 2"; fail=1; }
+# Broken-Lua cart: pre-validated before the VM starts, so it must show
+# the LOAD ERROR screen (frames presented, error in the log) and exit 2
+# — never the BIOS menu as if it were the cart.
 run_player invalid-corrupt invalid.p8 10 empty.txt; rc=$?
-echo "invalid-corrupt exit=$rc (recorded; see run.log for the VM's error handling)"
+[ $rc -eq 2 ] || { echo "FAIL: broken-Lua cart exit=$rc, expected 2"; fail=1; }
+grep -q "cart Lua error:" "$OUTBASE/invalid-corrupt/pico.log" \
+    || { echo "FAIL: broken-Lua cart did not report its Lua error"; fail=1; }
+grep -q "syntax error" "$OUTBASE/invalid-corrupt/pico.log" \
+    || { echo "FAIL: broken-Lua cart error was not the syntax error"; fail=1; }
+python3 -c "import json,sys; s=json.load(open('$OUTBASE/invalid-corrupt/stats.json')); sys.exit(0 if s['frames_presented']>=1 else 1)" \
+    || { echo "FAIL: broken-Lua cart showed no error screen frames"; fail=1; }
+grep -q "Loading cart __FAKE08-DEFAULT" "$OUTBASE/invalid-corrupt/pico.log" \
+    && { echo "FAIL: broken-Lua cart fell back to the BIOS menu"; fail=1; }
+grep -q "Start of GameLoop" "$OUTBASE/invalid-corrupt/pico.log" \
+    && { echo "FAIL: broken-Lua cart entered GameLoop"; fail=1; }
 
 # --- analyse ---
 python3 "$SIMDIR/analyze.py" "$OUTBASE"

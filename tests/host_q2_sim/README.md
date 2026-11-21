@@ -90,15 +90,20 @@ next GameLoop iteration and the 30 FPS coroutine yields once more
 before the tick that polls input. Pacing figures use the actual
 frame timestamps in `stats.json`, not the requested count.
 
-Known player gap found by the invalid-cart run: a cart with broken
-Lua does not fail visibly. `Vm::LoadCart` succeeds (the file parses),
-the syntax error is only found when `vm_run()` loads the code, and
-FAKE-08 then queues a cart change to its built-in BIOS menu — the
-error appears only in the log, and the user sees the BIOS menu with
-no on-screen error for their cart. A missing cart, by contrast,
-exits 2 with 0 frames. Fixing the broken-Lua fallback would change
-upstream FAKE-08 behaviour on the device too, so it is reported
-here, not changed in this harness.
+Broken-Lua carts used to fall back to the BIOS menu silently:
+`Vm::LoadCart` succeeds (the file parses), the syntax error is only
+found when the VM first ticks the cart inside `GameLoop()`, and
+FAKE-08 then queues a switch to its built-in BIOS menu — and the
+load error is clobbered when that BIOS cart is loaded, so the BIOS
+shows no error either. That is now fixed in the Q2 host, without
+changing upstream FAKE-08: `src/cart_validate.h` /
+`q2_cart_lua_ok()` (in `src/fake08_host.cpp`) parses the cart with
+upstream's own `Cart` class and compiles its Lua with z8lua before
+the VM starts. A bad cart shows a LOAD ERROR screen (cart name +
+syntax error) and exits 2; it never enters `GameLoop()` and never
+loads the BIOS. A missing cart still exits 2 with 0 frames.
+Runtime errors *during* play (e.g. in `_update`) still follow
+upstream's BIOS-fallback path — that is a separate, un-fixed case.
 
 ## Still device-only
 

@@ -116,9 +116,12 @@ natively on x86_64 through a host simulation of the Q2 hardware layer
   EXIT TO MENU / EXIT TO SETTINGS), touch taps hit the on-screen
   controls, and a double-Back exits.
 - Invalid carts: a missing cart exits 2 with 0 frames. A cart with
-  broken Lua is a known gap, not a pass: FAKE-08 logs the syntax
-  error and falls back to its BIOS menu instead of failing visibly,
-  so the user sees no on-screen error for their cart.
+  broken Lua now also fails visibly instead of falling back to the
+  BIOS menu: the host pre-validates the cart's Lua (see
+  `src/cart_validate.h`) before starting the VM, shows a LOAD ERROR
+  screen with the cart name and the syntax error, and exits 2 on
+  Centre/Back. Verified in the host sim: `invalid.p8` exits 2 with
+  the error screen presented and no BIOS load, no GameLoop entry.
 
 ### Remaining device validation
 

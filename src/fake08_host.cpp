@@ -17,6 +17,12 @@
 #include "host.h"
 #include "hostVmShared.h"
 #include "q2_platform.h"
+#include "cart_validate.h"
+
+/* Upstream Cart parser + z8lua compiler, for q2_cart_lua_ok() below. */
+#include "cart.h"
+#include "lua.h"
+#include "lauxlib.h"
 
 namespace {
 constexpr const char *cart_dir = "/mnt/mmc/.pico8/carts";
@@ -191,4 +197,39 @@ void Host::setPlatformParams(int w,int h,uint32_t wf,uint32_t rf,uint32_t pf,
     _logFilePrefix=log;
     _customBiosLua=bios;
     _cartDirectory=carts;
+}
+
+/* See cart_validate.h. The Cart probe re-parses the file exactly as
+ * Vm::LoadCart will, so a cart that passes here will parse there too.
+ * luaL_loadstring compiles with z8lua's own parser — the same one
+ * __z8_load_code uses inside the VM — so PICO-8 syntax extensions
+ * (e.g. +=, //) are accepted exactly as the VM accepts them, and a
+ * syntax error produces the VM's own message. No libraries are opened:
+ * this only compiles, it never runs the cart. */
+bool q2_cart_lua_ok(const std::string &filename,
+                    const std::string &cart_dir,
+                    std::string &error_out) {
+    Cart probe(filename, cart_dir);
+    if (!probe.LoadError.empty()) {
+        error_out = probe.LoadError;
+        return false;
+    }
+    if (probe.LuaString.empty()) {
+        error_out = "Cart file has no Lua code";
+        return false;
+    }
+    lua_State *L = luaL_newstate();
+    if (!L) {
+        error_out = "Out of memory checking cart Lua";
+        return false;
+    }
+    int status = luaL_loadstring(L, probe.LuaString.c_str());
+    if (status != LUA_OK) {
+        const char *msg = lua_tostring(L, -1);
+        error_out = msg ? msg : "syntax error";
+        lua_close(L);
+        return false;
+    }
+    lua_close(L);
+    return true;
 }
