@@ -17,10 +17,32 @@
 #include "host.h"
 #include "hostVmShared.h"
 #include "q2_platform.h"
+#include "cart_validate.h"
+
+/* Upstream Cart parser + z8lua compiler, for q2_cart_lua_ok() below. */
+#include "cart.h"
+#include "lua.h"
+#include "lauxlib.h"
 
 namespace {
 constexpr const char *cart_dir = "/mnt/mmc/.pico8/carts";
 constexpr const char *data_dir = "/mnt/mmc/.pico8/";
+/* FAKE-08's synth runs at 22050 Hz stereo. One video frame's worth of
+ * audio is 22050/fps frames: 735 at 30 FPS, 367/368 alternating at
+ * 60 FPS. The buffer holds 2048 frames, so any fps >= 11 fits; lower
+ * rates are clamped (audio runs slightly slow rather than overflowing).
+ * Audio is filled every video frame whether or not ALSA opened: that
+ * keeps the synth clock tied to the frame clock (as in FAKE-08's SDL
+ * hosts, whose callback always runs) and keeps the path testable in
+ * the native smoke test, where there is no ALSA device. When ALSA is
+ * missing on the Q2, playFilledAudioBuffer discards the samples and
+ * the game runs silent. */
+constexpr unsigned audio_rate = 22050;
+constexpr unsigned audio_buffer_frames = 2048;
+uint32_t audio_buffer[audio_buffer_frames];
+double audio_credit = 0;
+unsigned audio_frames = 0;
+int audio_fps = 60;
 uint32_t last_frame = 0;
 uint32_t target_ms = 33;
 bool opened = false;
@@ -51,16 +73,22 @@ void Host::oneTimeSetup(Audio *audio) {
     (void)audio;
     opened = q2_open() == 0;
     stopped = !opened;
+    if (opened) q2_audio_open(); /* -1 when ALSA is missing: silent mode. */
+    audio_credit = 0;
+    audio_frames = 0;
     last_frame = q2_millis();
     mkdir("/mnt/mmc/.pico8/cdata", 0755);
 }
 void Host::oneTimeCleanup() {
+    q2_audio_close();
     if(opened)q2_close();
     opened = false;
 }
 void Host::setTargetFps(int fps) {
     target_ms = fps > 0 ? (uint32_t)(1000/fps) : 33;
     if(!target_ms)target_ms = 1;
+    audio_fps = (fps > 0 && fps <= 240) ? fps : 60;
+    audio_credit = 0;
 }
 void Host::waitForTargetFps() {
     uint32_t now=q2_millis();
@@ -105,10 +133,27 @@ void Host::drawFrame(uint8_t *pixels,uint8_t *screenPaletteMap,uint8_t drawMode)
                   (uint32_t(pal[i].Green)<<8)|uint32_t(pal[i].Blue);
     q2_present_fake08(pixels,screenPaletteMap,colors);
 }
-bool Host::shouldFillAudioBuff(){return false;}
-void *Host::getAudioBufferPointer(){return nullptr;}
-size_t Host::getAudioBufferSize(){return 0;}
-void Host::playFilledAudioBuffer(){}
+bool Host::shouldFillAudioBuff(){
+    if(!opened||stopped)return false;
+    /* One frame's worth of 22050 Hz samples, fractional part carried
+     * forward so 60 FPS alternates 367/368 frames and never drifts. */
+    audio_credit += (double)audio_rate / (double)audio_fps;
+    unsigned frames = (unsigned)audio_credit;
+    audio_credit -= (double)frames;
+    if(frames > audio_buffer_frames)frames = audio_buffer_frames;
+    audio_frames = frames;
+    return audio_frames > 0;
+}
+void *Host::getAudioBufferPointer(){return audio_buffer;}
+size_t Host::getAudioBufferSize(){return audio_frames;}
+void Host::playFilledAudioBuffer(){
+    if(!audio_frames)return;
+    /* FillAudioBuffer writes one uint32 per frame (the same s16 sample
+     * in both halves). On little-endian MIPS that is already interleaved
+     * stereo s16, so the buffer can be handed to ALSA as-is. */
+    q2_audio_write(reinterpret_cast<const int16_t *>(audio_buffer), audio_frames);
+    audio_frames = 0;
+}
 
 std::vector<std::string> Host::listcarts() {
     std::vector<std::string> carts;
@@ -152,4 +197,39 @@ void Host::setPlatformParams(int w,int h,uint32_t wf,uint32_t rf,uint32_t pf,
     _logFilePrefix=log;
     _customBiosLua=bios;
     _cartDirectory=carts;
+}
+
+/* See cart_validate.h. The Cart probe re-parses the file exactly as
+ * Vm::LoadCart will, so a cart that passes here will parse there too.
+ * luaL_loadstring compiles with z8lua's own parser — the same one
+ * __z8_load_code uses inside the VM — so PICO-8 syntax extensions
+ * (e.g. +=, //) are accepted exactly as the VM accepts them, and a
+ * syntax error produces the VM's own message. No libraries are opened:
+ * this only compiles, it never runs the cart. */
+bool q2_cart_lua_ok(const std::string &filename,
+                    const std::string &cart_dir,
+                    std::string &error_out) {
+    Cart probe(filename, cart_dir);
+    if (!probe.LoadError.empty()) {
+        error_out = probe.LoadError;
+        return false;
+    }
+    if (probe.LuaString.empty()) {
+        error_out = "Cart file has no Lua code";
+        return false;
+    }
+    lua_State *L = luaL_newstate();
+    if (!L) {
+        error_out = "Out of memory checking cart Lua";
+        return false;
+    }
+    int status = luaL_loadstring(L, probe.LuaString.c_str());
+    if (status != LUA_OK) {
+        const char *msg = lua_tostring(L, -1);
+        error_out = msg ? msg : "syntax error";
+        lua_close(L);
+        return false;
+    }
+    lua_close(L);
+    return true;
 }

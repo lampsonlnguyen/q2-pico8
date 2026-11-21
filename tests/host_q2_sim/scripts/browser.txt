@@ -1,0 +1,6 @@
+# Browser picker script: wheel down one cart, then Centre (O) to choose it.
+# Times are ms since q2_open. 'quit' is a failsafe if O never lands.
+200 wheel 1
+400 key O down
+600 key O up
+2000 quit

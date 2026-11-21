@@ -1,0 +1,24 @@
+# Full control script for tests/input.p8 (times ms since q2_open).
+# Held keys move the circle; X resets it, O changes colour; a single
+# Back pauses, a second Back >500 ms later resumes; touch taps the
+# on-screen X (331,170) and UP (12,70) controls; a double-Back quits.
+300 key LEFT down
+900 key LEFT up
+1100 key RIGHT down
+1700 key RIGHT up
+1900 key UP down
+2300 key UP up
+2500 key DOWN down
+2900 key DOWN up
+3100 key X down
+3300 key X up
+3500 key O down
+3700 key O up
+3900 key BACK press
+4700 key BACK press
+4900 touch 331 170 down
+5100 touch 331 170 up
+5300 touch 12 70 down
+5500 touch 12 70 up
+5700 key BACK press
+5850 key BACK press

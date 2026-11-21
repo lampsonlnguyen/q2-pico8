@@ -91,6 +91,43 @@ static void label(uint8_t *fb,unsigned x,unsigned y,const char *s,unsigned col,u
             if(font[g][yy]&(4u>>xx))dot(fb,x+xx,y+yy,col);
     }
 }
+void q2_draw_cart_error(uint8_t *screen,const char *name,const char *error){
+    unsigned i;
+    for(i=0;i<8192;++i)screen[i]=0x11; /* dark navy */
+    rect(screen,0,0,128,14,13);
+    label(screen,7,5,"LOAD ERROR",7,30);
+    if(name)label(screen,7,20,name,7,29);
+    /* Wrap the error at 29 chars/line (the 3x5 font is 4 px/char).
+     * The font only renders A-Z, 0-9, '.', ':' and '-'; anything else
+     * (quotes, parens, apostrophes) renders blank, but the words,
+     * line number and "syntax error" stay readable. */
+    {
+        const char *p=error&&error[0]?error:"SYNTAX ERROR";
+        unsigned y=32;
+        while(*p&&y+5<104){
+            unsigned len=0;
+            while(p[len]&&len<29)++len;
+            if(p[len]&&p[len]!=' '){
+                unsigned cut=len;
+                while(cut>8&&p[cut]!=' ')--cut;
+                if(cut>8)len=cut;
+            }
+            {
+                char line[30];
+                unsigned k;
+                for(k=0;k<len;++k)line[k]=p[k];
+                line[len]=0;
+                label(screen,7,y,line,8,29);
+            }
+            y+=8;
+            p+=len;
+            while(*p==' ')++p;
+        }
+    }
+    rect(screen,0,110,128,18,0);
+    label(screen,5,113,"CENTER: EXIT",7,30);
+    label(screen,5,121,"BACK: EXIT",6,30);
+}
 void q2_draw_cart_browser(uint8_t *screen,const q2_cart_list *list,int pending){
     for(unsigned i=0;i<8192;++i)screen[i]=0x11; /* dark navy */
     rect(screen,0,0,128,14,13);
