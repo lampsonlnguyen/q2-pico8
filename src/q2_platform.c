@@ -4,12 +4,13 @@
  * Audio (Q2_GLIBC builds only) goes through ALSA, resolved at runtime
  * with dlopen like q2-atari2600's platform layer, so the binary needs
  * no link-time libasound. If ALSA cannot be opened, the game runs silent.
+ * NOTE: no libc headers are included here on purpose. CI syntax-checks
+ * this file with clang --target=mipsel-linux-gnu and no sysroot, where
+ * host headers such as <dlfcn.h>/<stdio.h> do not resolve (they pull in
+ * bits/wordsize.h). dlopen/dlsym/dlclose are declared manually below
+ * and logging goes through the raw write syscall, as the rest of this
+ * file already does for everything else.
  */
-#ifdef Q2_GLIBC
-#define _GNU_SOURCE 1
-#include <dlfcn.h>
-#include <stdio.h>
-#endif
 #include "q2_platform.h"
 long sc(long n,long a,long b,long c,long d,long e,long f);
 #ifndef Q2_GLIBC
@@ -67,6 +68,22 @@ static const struct {
  * stable ALSA ABI values (SND_PCM_STREAM_PLAYBACK 0, SND_PCM_FORMAT_S16_LE
  * 2, SND_PCM_ACCESS_RW_INTERLEAVED 3, SND_PCM_NONBLOCK 1). */
 #ifdef Q2_GLIBC
+/* Manual declarations: see the note at the top of this file. The values
+ * are the stable glibc ABI ones (RTLD_NOW 2, RTLD_LOCAL 0). */
+extern void *dlopen(const char *filename, int flags);
+extern void *dlsym(void *handle, const char *symbol);
+extern int dlclose(void *handle);
+#define RTLD_NOW 2
+#define RTLD_LOCAL 0
+
+/* Log to stderr (fd 2) through the raw write syscall (MIPS o32: 4004),
+ * so audio failures stay visible without any libc header or call. */
+static void q2_log(const char *msg) {
+    unsigned n = 0;
+    while (msg[n]) ++n;
+    sc(4004, 2, (long)msg, (long)n, 0, 0, 0);
+}
+
 typedef void snd_pcm_t;
 static void *alsa_handle;
 static int (*alsa_open_fn)(snd_pcm_t **, const char *, int, int);
@@ -81,7 +98,7 @@ static int alsa_try_open(const char *device) {
     if (alsa_open_fn(&audio_pcm, device, 0, 1) != 0) return -1;
     if (alsa_set_params_fn(audio_pcm, 2, 3, 2, Q2_AUDIO_RATE, 1, 68000) != 0) {
         alsa_close_fn(audio_pcm);
-        audio_pcm = NULL;
+        audio_pcm = 0;
         return -1;
     }
     return 0;
@@ -101,7 +118,7 @@ int q2_audio_open(void) {
         if (!alsa_open_fn || !alsa_set_params_fn || !alsa_writei_fn ||
             !alsa_close_fn || !alsa_drop_fn || !alsa_recover_fn) {
             dlclose(alsa_handle);
-            alsa_handle = NULL;
+            alsa_handle = 0;
             return -1;
         }
     }
@@ -109,7 +126,7 @@ int q2_audio_open(void) {
      * "default" as a fallback; both may fail on a device without ALSA. */
     if (alsa_try_open("plughw:0,0") == 0) return 0;
     if (alsa_try_open("default") == 0) return 0;
-    fprintf(stderr, "q2-pico8: ALSA open failed, running silent\n");
+    q2_log("q2-pico8: ALSA open failed, running silent\n");
     return -1;
 }
 
@@ -117,15 +134,15 @@ void q2_audio_close(void) {
     if (audio_pcm) {
         alsa_drop_fn(audio_pcm);
         alsa_close_fn(audio_pcm);
-        audio_pcm = NULL;
+        audio_pcm = 0;
     }
     if (alsa_handle) {
         dlclose(alsa_handle);
-        alsa_handle = NULL;
+        alsa_handle = 0;
     }
 }
 
-int q2_audio_available(void) { return audio_pcm != NULL; }
+int q2_audio_available(void) { return audio_pcm != 0; }
 
 void q2_audio_write(const int16_t *samples, unsigned frames) {
     if (!audio_pcm || !samples || !frames) return;
@@ -140,7 +157,7 @@ void q2_audio_write(const int16_t *samples, unsigned frames) {
         if (written == -11 || written == -4) return; /* -EAGAIN / -EINTR: drop */
         if (written <= 0) {
             /* Fatal error: drop the device and keep the game running silent. */
-            fprintf(stderr, "q2-pico8: ALSA write failed (%ld), running silent\n", written);
+            q2_log("q2-pico8: ALSA write failed, running silent\n");
             q2_audio_close();
             return;
         }
