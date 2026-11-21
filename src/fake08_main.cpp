@@ -72,8 +72,10 @@ extern "C" int q2_main(void) {
     char path[160]={};
 #ifdef Q2_FAKE08_SMOKE
     /* Run a locally authored test cartridge against the actual FAKE-08 VM,
-     * using a simulated framebuffer and input instead of a Q2 device. */
-    const char *demo="demo.p8";
+     * using a simulated framebuffer and input instead of a Q2 device.
+     * audio.p8 plays a sustained sfx as well as drawing frames, so the
+     * smoke test also verifies the synth produces non-silent audio. */
+    const char *demo="audio.p8";
     for(unsigned i=0;demo[i]&&i+1<sizeof path;i++)path[i]=demo[i];
 #else
     if(!pick_cart(path,sizeof path))return 0;

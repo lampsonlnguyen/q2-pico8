@@ -21,6 +21,21 @@ void q2_present_fake08(const uint8_t *packed_pixels,
                        const uint32_t colors[144]);
 unsigned q2_millis(void);
 void q2_close(void);
+
+/* Stereo ALSA audio, 22050 Hz interleaved s16 (FAKE-08's native rate).
+ * Only built when Q2_GLIBC is defined: ALSA is resolved at runtime with
+ * dlopen("libasound.so.2"), so the binary carries no link-time ALSA
+ * dependency and the freestanding browser preview is unaffected.
+ * q2_audio_open() returns 0 when the device opened and -1 when audio is
+ * unavailable; the game then runs silent. q2_audio_write() queues one
+ * video frame's worth of samples; it never blocks the game loop — a
+ * full device buffer drops the chunk instead of stalling frame pacing.
+ * All three are no-ops / -1 in the freestanding build. */
+enum { Q2_AUDIO_RATE = 22050, Q2_AUDIO_CHANNELS = 2 };
+int q2_audio_open(void);
+void q2_audio_close(void);
+int q2_audio_available(void);
+void q2_audio_write(const int16_t *samples, unsigned frames);
 #ifdef __cplusplus
 }
 #endif

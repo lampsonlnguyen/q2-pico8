@@ -1,7 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Q2 Pod native MIPS framebuffer/input backend; no SDL or libc dependency.
  * Input datagrams follow DiamondBond/q2-pod's card-app protocol.
+ * Audio (Q2_GLIBC builds only) goes through ALSA, resolved at runtime
+ * with dlopen like q2-atari2600's platform layer, so the binary needs
+ * no link-time libasound. If ALSA cannot be opened, the game runs silent.
  */
+#ifdef Q2_GLIBC
+#define _GNU_SOURCE 1
+#include <dlfcn.h>
+#include <stdio.h>
+#endif
 #include "q2_platform.h"
 long sc(long n,long a,long b,long c,long d,long e,long f);
 #ifndef Q2_GLIBC
@@ -53,6 +61,102 @@ static const struct {
     {CONTROL_X_RIGHT,170,Q2_X,     {0,34,20,8,20,34,0}},
 };
 #endif
+
+/* --- ALSA audio (Q2_GLIBC only) ---------------------------------------- */
+/* Only the entry points the player needs. The numeric constants are the
+ * stable ALSA ABI values (SND_PCM_STREAM_PLAYBACK 0, SND_PCM_FORMAT_S16_LE
+ * 2, SND_PCM_ACCESS_RW_INTERLEAVED 3, SND_PCM_NONBLOCK 1). */
+#ifdef Q2_GLIBC
+typedef void snd_pcm_t;
+static void *alsa_handle;
+static int (*alsa_open_fn)(snd_pcm_t **, const char *, int, int);
+static int (*alsa_set_params_fn)(snd_pcm_t *, int, int, unsigned, unsigned, int, unsigned);
+static long (*alsa_writei_fn)(snd_pcm_t *, const void *, unsigned long);
+static int (*alsa_close_fn)(snd_pcm_t *);
+static int (*alsa_drop_fn)(snd_pcm_t *);
+static int (*alsa_recover_fn)(snd_pcm_t *, int, int);
+static snd_pcm_t *audio_pcm;
+
+static int alsa_try_open(const char *device) {
+    if (alsa_open_fn(&audio_pcm, device, 0, 1) != 0) return -1;
+    if (alsa_set_params_fn(audio_pcm, 2, 3, 2, Q2_AUDIO_RATE, 1, 68000) != 0) {
+        alsa_close_fn(audio_pcm);
+        audio_pcm = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+int q2_audio_open(void) {
+    if (audio_pcm) return 0;
+    if (!alsa_handle) {
+        alsa_handle = dlopen("libasound.so.2", RTLD_NOW | RTLD_LOCAL);
+        if (!alsa_handle) return -1;
+        alsa_open_fn = dlsym(alsa_handle, "snd_pcm_open");
+        alsa_set_params_fn = dlsym(alsa_handle, "snd_pcm_set_params");
+        alsa_writei_fn = dlsym(alsa_handle, "snd_pcm_writei");
+        alsa_close_fn = dlsym(alsa_handle, "snd_pcm_close");
+        alsa_drop_fn = dlsym(alsa_handle, "snd_pcm_drop");
+        alsa_recover_fn = dlsym(alsa_handle, "snd_pcm_recover");
+        if (!alsa_open_fn || !alsa_set_params_fn || !alsa_writei_fn ||
+            !alsa_close_fn || !alsa_drop_fn || !alsa_recover_fn) {
+            dlclose(alsa_handle);
+            alsa_handle = NULL;
+            return -1;
+        }
+    }
+    /* plughw first (rate conversion if the hardware cannot do 22050 Hz),
+     * "default" as a fallback; both may fail on a device without ALSA. */
+    if (alsa_try_open("plughw:0,0") == 0) return 0;
+    if (alsa_try_open("default") == 0) return 0;
+    fprintf(stderr, "q2-pico8: ALSA open failed, running silent\n");
+    return -1;
+}
+
+void q2_audio_close(void) {
+    if (audio_pcm) {
+        alsa_drop_fn(audio_pcm);
+        alsa_close_fn(audio_pcm);
+        audio_pcm = NULL;
+    }
+    if (alsa_handle) {
+        dlclose(alsa_handle);
+        alsa_handle = NULL;
+    }
+}
+
+int q2_audio_available(void) { return audio_pcm != NULL; }
+
+void q2_audio_write(const int16_t *samples, unsigned frames) {
+    if (!audio_pcm || !samples || !frames) return;
+    const int16_t *cursor = samples;
+    unsigned remaining = frames;
+    while (remaining) {
+        long written = alsa_writei_fn(audio_pcm, cursor, remaining);
+        if (written == -32 || written == -77) { /* -EPIPE / -ESTRPIPE */
+            if (alsa_recover_fn(audio_pcm, (int)written, 1) == 0)
+                written = alsa_writei_fn(audio_pcm, cursor, remaining);
+        }
+        if (written == -11 || written == -4) return; /* -EAGAIN / -EINTR: drop */
+        if (written <= 0) {
+            /* Fatal error: drop the device and keep the game running silent. */
+            fprintf(stderr, "q2-pico8: ALSA write failed (%ld), running silent\n", written);
+            q2_audio_close();
+            return;
+        }
+        cursor += (unsigned)written * Q2_AUDIO_CHANNELS;
+        remaining -= (unsigned)written;
+    }
+}
+#else /* !Q2_GLIBC: freestanding browser preview has no audio device. */
+int q2_audio_open(void) { return -1; }
+void q2_audio_close(void) {}
+int q2_audio_available(void) { return 0; }
+void q2_audio_write(const int16_t *samples, unsigned frames) {
+    (void)samples;
+    (void)frames;
+}
+#endif /* Q2_GLIBC */
 
 unsigned q2_millis(void) {
     long ts[2]={0};
@@ -239,6 +343,7 @@ void q2_present_fake08(const uint8_t *pixels,
 }
 
 void q2_close(void) {
+    q2_audio_close();
     if(sock>=0) {sc(SYS_CLOSE,sock,0,0,0,0,0);sock=-1;sc(SYS_UNLINK,(long)SOCKET_PATH,0,0,0,0,0);}
     if(memory) {
         if(visible!=front) {var[5]=front;sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0);}

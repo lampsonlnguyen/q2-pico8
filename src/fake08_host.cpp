@@ -21,6 +21,22 @@
 namespace {
 constexpr const char *cart_dir = "/mnt/mmc/.pico8/carts";
 constexpr const char *data_dir = "/mnt/mmc/.pico8/";
+/* FAKE-08's synth runs at 22050 Hz stereo. One video frame's worth of
+ * audio is 22050/fps frames: 735 at 30 FPS, 367/368 alternating at
+ * 60 FPS. The buffer holds 2048 frames, so any fps >= 11 fits; lower
+ * rates are clamped (audio runs slightly slow rather than overflowing).
+ * Audio is filled every video frame whether or not ALSA opened: that
+ * keeps the synth clock tied to the frame clock (as in FAKE-08's SDL
+ * hosts, whose callback always runs) and keeps the path testable in
+ * the native smoke test, where there is no ALSA device. When ALSA is
+ * missing on the Q2, playFilledAudioBuffer discards the samples and
+ * the game runs silent. */
+constexpr unsigned audio_rate = 22050;
+constexpr unsigned audio_buffer_frames = 2048;
+uint32_t audio_buffer[audio_buffer_frames];
+double audio_credit = 0;
+unsigned audio_frames = 0;
+int audio_fps = 60;
 uint32_t last_frame = 0;
 uint32_t target_ms = 33;
 bool opened = false;
@@ -51,16 +67,22 @@ void Host::oneTimeSetup(Audio *audio) {
     (void)audio;
     opened = q2_open() == 0;
     stopped = !opened;
+    if (opened) q2_audio_open(); /* -1 when ALSA is missing: silent mode. */
+    audio_credit = 0;
+    audio_frames = 0;
     last_frame = q2_millis();
     mkdir("/mnt/mmc/.pico8/cdata", 0755);
 }
 void Host::oneTimeCleanup() {
+    q2_audio_close();
     if(opened)q2_close();
     opened = false;
 }
 void Host::setTargetFps(int fps) {
     target_ms = fps > 0 ? (uint32_t)(1000/fps) : 33;
     if(!target_ms)target_ms = 1;
+    audio_fps = (fps > 0 && fps <= 240) ? fps : 60;
+    audio_credit = 0;
 }
 void Host::waitForTargetFps() {
     uint32_t now=q2_millis();
@@ -105,10 +127,27 @@ void Host::drawFrame(uint8_t *pixels,uint8_t *screenPaletteMap,uint8_t drawMode)
                   (uint32_t(pal[i].Green)<<8)|uint32_t(pal[i].Blue);
     q2_present_fake08(pixels,screenPaletteMap,colors);
 }
-bool Host::shouldFillAudioBuff(){return false;}
-void *Host::getAudioBufferPointer(){return nullptr;}
-size_t Host::getAudioBufferSize(){return 0;}
-void Host::playFilledAudioBuffer(){}
+bool Host::shouldFillAudioBuff(){
+    if(!opened||stopped)return false;
+    /* One frame's worth of 22050 Hz samples, fractional part carried
+     * forward so 60 FPS alternates 367/368 frames and never drifts. */
+    audio_credit += (double)audio_rate / (double)audio_fps;
+    unsigned frames = (unsigned)audio_credit;
+    audio_credit -= (double)frames;
+    if(frames > audio_buffer_frames)frames = audio_buffer_frames;
+    audio_frames = frames;
+    return audio_frames > 0;
+}
+void *Host::getAudioBufferPointer(){return audio_buffer;}
+size_t Host::getAudioBufferSize(){return audio_frames;}
+void Host::playFilledAudioBuffer(){
+    if(!audio_frames)return;
+    /* FillAudioBuffer writes one uint32 per frame (the same s16 sample
+     * in both halves). On little-endian MIPS that is already interleaved
+     * stereo s16, so the buffer can be handed to ALSA as-is. */
+    q2_audio_write(reinterpret_cast<const int16_t *>(audio_buffer), audio_frames);
+    audio_frames = 0;
+}
 
 std::vector<std::string> Host::listcarts() {
     std::vector<std::string> carts;

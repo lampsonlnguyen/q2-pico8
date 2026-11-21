@@ -1,8 +1,10 @@
 # PICO-8 player for Q2 Pod — FAKE-08 port in progress
 
 The experimental player runs cartridges through the FAKE-08 VM. The native
-smoke test runs an original cartridge and checks that it renders frames.
-The physical Q2 still needs a gameplay test. Audio is currently disabled.
+smoke test runs an original cartridge and checks that it renders frames
+and that the synth produces non-silent audio. Stereo sound is wired up
+through the Q2 ALSA path (see "Audio" below); the physical Q2 still needs
+a gameplay test to confirm sound actually comes out of the device.
 
 ## Install the experimental player
 
@@ -38,12 +40,14 @@ player ZIP to run cartridges.
 - `src/cart_browser_probe.c`: Hardware preview, which **does not execute** cartridges.
 - `src/femto8_bridge.c`: Earlier unlinked proof-of-concept for graphics and input integration with upstream femto8.
 - `tests/browser_test.c`: Unit test for cartridge discovery and path construction.
+- `tests/audio.p8`: Original CC0 test cartridge that plays a sustained sine sfx; the native smoke test runs it to verify the synth produces non-silent audio. `tests/demo.p8` is the earlier silent frame-only cart.
 
 ## FAKE-08 integration (experimental)
 
 The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 
-- `src/fake08_host.cpp`: implements the upstream `Host` interface, wheel/Center/Back input translation, 2× framebuffer drawing, cartridge enumeration, frame timing and lifecycle. Audio is deliberately disabled initially.
+- `src/fake08_host.cpp`: implements the upstream `Host` interface, wheel/Center/Back input translation, 2× framebuffer drawing, cartridge enumeration, frame timing and lifecycle, and the per-frame audio fill (see "Audio").
+- `src/q2_platform.c`: ALSA audio for the glibc build, resolved at runtime with `dlopen("libasound.so.2")` (same pattern as q2-atari2600); the freestanding browser build has no audio device and its stubs are no-ops.
 - `src/fake08_main.cpp`: selects a cartridge with the existing Q2 browser, opens the real FAKE-08 `Vm`, loads the selected file, runs the VM loop and closes it cleanly.
 - `src/q2_platform.c`: renders normal 16-color and FAKE-08's alternate 128–143 colors using the per-frame screen palette map.
 - `.github/workflows/fake08-port.yml`: checks that the freestanding browser still builds and compiles the FAKE-08-specific C++ files against upstream revision `814991a2571ad3970e386cef48f3b148aa1c27b9`.
@@ -51,8 +55,9 @@ The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 ### Trying the experimental MIPS engine build
 
 The optional cross-build script compiles FAKE-08's real interpreter and Lua
-runtime, the Q2 host and the cartridge picker. It does **not** run as part of
-the normal browser-preview build or publish an installable release.
+runtime, the Q2 host and the cartridge picker. The CI `device` job runs
+this script and publishes the `q2-pico8-playable-experimental` artifact;
+it does **not** run as part of the normal browser-preview build.
 
 ```sh
 git clone --recurse-submodules https://github.com/jtothebell/fake-08 ../fake-08
@@ -74,11 +79,28 @@ dependencies have separate notices in its `LICENSE.MD`. This repository does
 not include an emulator binary or redistribute FAKE-08 source; contributors
 must obtain the upstream source and preserve the license notices when packaging.
 
+### Audio
+
+FAKE-08's synth runs at 22050 Hz stereo. The host fills one video
+frame's worth of samples per `GameLoop` iteration — 735 frames at
+30 FPS, 367/368 alternating at 60 FPS (fractional part carried
+forward, so the audio clock never drifts from the frame clock) — and
+hands them to ALSA as interleaved s16. `q2_audio_open()` tries
+`plughw:0,0` then `default`; if neither opens, the game runs silent
+rather than failing. Audio writes never block the game loop: a full
+device buffer drops that frame's chunk instead of stalling pacing.
+The native smoke test drives the real synth with `tests/audio.p8`
+(a sustained sine sfx) and fails if it produces no audio frames or
+only silence — last verified run wrote 4042 frames with peak sample
+8191 over 12 rendered frames.
+
 ### Remaining device validation
 
 - Check cartridge loading, touch and physical controls, and frame pacing on
   real Q2 hardware at both 30 and 60 FPS.
-- Bring up stereo ALSA sound using the Q2 audio path.
+- Confirm sound actually comes out of the Q2 speaker/headphones: the
+  ALSA path above is implemented and verified in the native smoke test,
+  but it has not yet been heard on a real Q2 (or in the emulator).
 
 ## Earlier Femto-8 investigation
 
