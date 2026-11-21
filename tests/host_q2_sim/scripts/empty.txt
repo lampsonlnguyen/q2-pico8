@@ -1,0 +1,1 @@
+# No input; the run ends via Q2_SIM_MAX_FRAMES.

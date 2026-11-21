@@ -94,13 +94,40 @@ The native smoke test drives the real synth with `tests/audio.p8`
 only silence — last verified run wrote 4042 frames with peak sample
 8191 over 12 rendered frames.
 
+### Host Q2 simulation validation (no emulator, no firmware)
+
+`bash tests/host_q2_sim/run.sh` runs the real FAKE-08 VM + Q2 host
+natively on x86_64 through a host simulation of the Q2 hardware layer
+(framebuffer, input script, WAV audio sink, fake SD card at
+`/mnt/mmc/.pico8/carts`). Verified 2026-11-21 (see
+`tests/host_q2_sim/README.md` for what is real vs simulated):
+
+- Cart browser: 5 carts listed, wheel +1 moves the selection to
+  `demo.p8`, Centre chooses it.
+- Pacing: GameLoop tick mean ~16.1 ms (target 16.7 ms); distinct
+  frames every ~32.0 ms for 30 FPS carts (`demo.p8`) and ~16.1 ms
+  for 60 FPS carts (`update60.p8`); audio fills alternate 367/368
+  frames per tick with no drift.
+- Audio: `audio.p8` / `update60.p8` produce 2.0 s of non-silent
+  audio (peak 8191, RMS ~4723, dominant 262 Hz) captured to WAV.
+- Controls: scripted LEFT/RIGHT/UP/DOWN move the circle by the
+  expected amounts, X resets it to centre, O changes its colour,
+  a single Back opens the pause menu (CONTINUE / RESET CART /
+  EXIT TO MENU / EXIT TO SETTINGS), touch taps hit the on-screen
+  controls, and a double-Back exits.
+- Invalid carts: a missing cart exits 2 with 0 frames. A cart with
+  broken Lua is a known gap, not a pass: FAKE-08 logs the syntax
+  error and falls back to its BIOS menu instead of failing visibly,
+  so the user sees no on-screen error for their cart.
+
 ### Remaining device validation
 
 - Check cartridge loading, touch and physical controls, and frame pacing on
   real Q2 hardware at both 30 and 60 FPS.
 - Confirm sound actually comes out of the Q2 speaker/headphones: the
-  ALSA path above is implemented and verified in the native smoke test,
-  but it has not yet been heard on a real Q2 (or in the emulator).
+  ALSA path above is implemented and verified in the native smoke test
+  and the host simulation (WAV capture), but it has not yet been heard
+  on a real Q2 (or in the emulator).
 
 ## Earlier Femto-8 investigation
 
