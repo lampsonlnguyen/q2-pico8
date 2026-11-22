@@ -55,3 +55,5 @@ long sc(long a,long b,long c,long d,long e,long f,long g){
     (void)a;(void)b;(void)c;(void)d;(void)e;(void)f;(void)g;
     return -1;
 }
+void q2_set_args(int argc,char **argv){(void)argc;(void)argv;}
+void q2_set_game_mode(int on){(void)on;}

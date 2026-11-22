@@ -1,3 +1,4 @@
 name=PICO-8 Browser Preview
 game=1
 audio=1
+gameview=1

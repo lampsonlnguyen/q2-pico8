@@ -10,7 +10,7 @@ sysroot="${Q2_SYSROOT:?Q2 sysroot with glibc 2.28 headers and the Q2 libraries i
 cxx="${Q2_LIBCXX:?libc++ install prefix built for mipsel nan2008}"
 out=build/fake08-clang; stage=dist/player
 mkdir -p "$out" "$stage/.pico8/carts"
-flags=(--target=mipsel-linux-gnu "--sysroot=$sysroot" -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008
+flags=(${Q2_EXTRA_CFLAGS:-} --target=mipsel-linux-gnu "--sysroot=$sysroot" -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008
        -D_GNU_SOURCE -O2 -ffunction-sections -fdata-sections -G0)
 cxxflags=(-std=gnu++17 -nostdinc++ -isystem "$cxx/include/c++/v1" -fno-rtti -w)
 inc=(-Isrc "-I$src/source" "-I$src/libs/z8lua" "-I$src/libs/miniz" "-I$src/libs/lodepng" "-I$src/libs/simpleini")

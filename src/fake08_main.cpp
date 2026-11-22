@@ -33,9 +33,13 @@ static int pick_cart(char *path,unsigned cap){
     while(1){
         q2_input input=q2_read_input();
         if(input.quit||(input.pressed&Q2_PAUSE))break;
-        if(input.wheel&&carts.count){
-            if(input.wheel>0)carts.selected=(carts.selected+1u)%carts.count;
-            else carts.selected=(carts.selected+carts.count-1u)%carts.count;
+        /* One row per 28 units of travel, the firmware's own wheel tick, not
+         * one per report (a single notch arrives as several reports). */
+        static int travel;
+        travel+=input.wheel;
+        while(carts.count&&(travel>=28||travel<=-28)){
+            if(travel>0){carts.selected=(carts.selected+1u)%carts.count;travel-=28;}
+            else{carts.selected=(carts.selected+carts.count-1u)%carts.count;travel+=28;}
             dirty=1;
         }
         if(input.pressed&Q2_O){
@@ -84,7 +88,8 @@ static int show_cart_load_error(const char *name, const std::string &error) {
 /* q2_platform.c supplies the native MIPS __start entry and calls q2_main.
  * Do not link cart_browser_probe.c alongside this file. */
 #ifdef Q2_GLIBC
-int main(void) {
+int main(int argc, char **argv) {
+    q2_set_args(argc, argv);
 #else
 extern "C" int q2_main(void) {
 #endif
@@ -130,7 +135,9 @@ extern "C" int q2_main(void) {
                 }else{
                     vm.vm_run();
                     host.setTargetFps(vm.GetTargetFps());
+                    q2_set_game_mode(1);
                     vm.GameLoop();
+                    q2_set_game_mode(0);
                 }
             }
         }

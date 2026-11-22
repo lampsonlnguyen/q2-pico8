@@ -20,10 +20,26 @@ a gameplay test to confirm sound actually comes out of the device.
 4. Open **Library → Games → PICO-8**. Turn the wheel to select a cart and
    press Center to start. Back exits the picker.
 
-During gameplay, use the on-screen arrows and **O** / **X** buttons for
-held input. Center also sends **O**, Play sends **X**, and Previous/Next
-send Left/Right. The wheel sends brief Left/Right presses. Back opens the
-PICO-8 pause menu. Press Back twice within half a second to exit to Q2 Pod.
+In the cart picker, turn the wheel one notch per cart and press Center to
+start one; Back leaves.
+
+During gameplay on Q2 Pod 1.9.0 and later (firmware with the `gameview`
+capability, which hands the game all five buttons):
+
+| Q2 control | PICO-8 |
+| --- | --- |
+| Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
+| Center | O |
+| Wheel | Left or Right, held while it turns (clockwise is Right) |
+| On-screen arrows, **O**, **X** | held input |
+| On-screen **≡** | pause menu (Continue, Reset cart, Exit to menu) |
+| Hold Return and Center together | exit to Q2 Pod |
+
+On Q2 Pod 1.8.9 and earlier, which don't forward Return to a game, Center is
+**O**, Play is **X**, Previous/Next are Left/Right, Back opens the pause menu,
+and Back twice within half a second exits (holding Back also exits: the
+firmware ends a game after a 700 ms Return hold). Either way the player
+saves cart data and closes the sound on its way out.
 
 If the app is missing, enable hidden files in your file manager and confirm
 `.pico8/q2app` and `.pico8/q2-pico8` are directly under the card root's
@@ -85,9 +101,15 @@ FAKE-08's synth runs at 22050 Hz stereo. The host fills one video
 frame's worth of samples per `GameLoop` iteration — 735 frames at
 30 FPS, 367/368 alternating at 60 FPS (fractional part carried
 forward, so the audio clock never drifts from the frame clock) — and
-hands them to ALSA as interleaved s16. `q2_audio_open()` tries
-`plughw:0,0` then `default`; if neither opens, the game runs silent
-rather than failing. Audio writes never block the game loop: a full
+hands them to ALSA as interleaved s16. `q2_audio_open()` opens the
+output Q2 Pod passes as `argv[1]` (`plughw:0,0` for the jack,
+`plug:bluealsa`, or `usb`, looked up in `/proc/asound/cards`), retrying
+for 2 s on the jack and 5 s otherwise while the music player lets go of
+the PCM. On the jack it clears the DAC's mute and PCM mode through
+`/dev/shanling_dac` after the open and mutes it again at close. A soft
+volume in `argv[2]` (`NN`; `hNN` is the DAC's own) and Mono Audio / Swap
+L/R (`/tmp/q2mono`, `/tmp/q2swap`) are applied to the samples. If nothing
+opens, the game runs silent rather than failing. Audio writes never block the game loop: a full
 device buffer drops that frame's chunk instead of stalling pacing.
 The native smoke test drives the real synth with `tests/audio.p8`
 (a sustained sine sfx) and fails if it produces no audio frames or

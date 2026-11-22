@@ -552,3 +552,7 @@ long sc(long n, long a, long b, long c, long d, long e, long f) {
     (void)c;
     return -1;
 }
+
+/* The device-only argument and game-mode hooks; the sim keeps the menu mapping. */
+void q2_set_args(int argc, char **argv) { (void)argc; (void)argv; }
+void q2_set_game_mode(int on) { (void)on; }

@@ -7,6 +7,7 @@ extern "C" {
 #endif
 enum { Q2_WIDTH=375, Q2_HEIGHT=320, P8_WIDTH=128, P8_HEIGHT=128 };
 typedef uint32_t q2_pixel;
+/* wheel: travel since the last read, 200 a turn, clockwise positive. */
 typedef struct { unsigned buttons; unsigned pressed; int wheel; unsigned quit; } q2_input;
 enum { Q2_LEFT=1, Q2_RIGHT=2, Q2_UP=4, Q2_DOWN=8, Q2_O=16, Q2_X=32, Q2_PAUSE=64 };
 /* Initialize framebuffer + Q2 Pod card input socket. Returns 0 on success. */
@@ -21,6 +22,16 @@ void q2_present_fake08(const uint8_t *packed_pixels,
                        const uint32_t colors[144]);
 unsigned q2_millis(void);
 void q2_close(void);
+/* Q2 Pod starts an audio=1 game with the output device (plughw:0,0,
+ * plug:bluealsa or usb) and, off the jack, its volume (NN soft, hNN shown
+ * only) as arguments: q2_audio_open() uses them. */
+void q2_set_args(int argc, char **argv);
+/* While a cart runs (on firmware with the gameview capability, which
+ * forwards all five buttons): Return, Play/Pause, Previous and Next are
+ * Up, Down, Left and Right, Centre is O, the wheel holds Left/Right while
+ * it turns, and the overlay's X and MENU are the remaining buttons. Off,
+ * as in the cart picker, Return is Back. */
+void q2_set_game_mode(int on);
 
 /* Stereo ALSA audio, 22050 Hz interleaved s16 (FAKE-08's native rate).
  * Only built when Q2_GLIBC is defined: ALSA is resolved at runtime with

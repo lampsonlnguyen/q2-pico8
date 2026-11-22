@@ -47,6 +47,7 @@ static q2_pixel *memory;
 static q2_input input_state;
 #ifdef Q2_GLIBC
 static unsigned physical_buttons, touch_button, back_at, back_pending;
+static unsigned game_mode, gameview, wheel_bit, wheel_until;
 
 enum { CONTROL_SIZE=32, CONTROL_X_LEFT=12, CONTROL_X_RIGHT=331 };
 static const struct {
@@ -60,6 +61,7 @@ static const struct {
     {CONTROL_X_LEFT, 220,Q2_DOWN,  {8,8,8,8,62,28,8}},
     {CONTROL_X_RIGHT,120,Q2_O,     {0,28,34,34,34,28,0}},
     {CONTROL_X_RIGHT,170,Q2_X,     {0,34,20,8,20,34,0}},
+    {CONTROL_X_RIGHT,220,Q2_PAUSE, {0,62,0,62,0,62,0}},   /* MENU: PICO-8's pause menu */
 };
 #endif
 
@@ -94,6 +96,60 @@ static int (*alsa_drop_fn)(snd_pcm_t *);
 static int (*alsa_recover_fn)(snd_pcm_t *, int, int);
 static snd_pcm_t *audio_pcm;
 
+static const char *arg_device, *arg_volume;
+static int audio_jack, soft_volume = 100, audio_mono, audio_swap;
+static volatile int term_requested;
+
+static int text_equal(const char *a, const char *b) {
+    while (*a && *a == *b) ++a, ++b;
+    return *a == *b;
+}
+static void sleep_ms(unsigned ms) {
+    long ts[2] = {(long)(ms / 1000u), (long)(ms % 1000u) * 1000000L};
+    sc(4166 /* nanosleep */, (long)ts, 0, 0, 0, 0, 0);
+}
+/* Reads a small file whole (raw syscalls); returns its length, or -1. */
+static long read_small(const char *path, char *buf, unsigned cap) {
+    long fd = sc(SYS_OPEN, (long)path, O_CLOEXEC, 0, 0, 0, 0), n = 0, r;
+    if (fd < 0) return -1;
+    while (n < (long)cap - 1 && (r = sc(4003 /* read */, fd, (long)buf + n, cap - 1 - n, 0, 0, 0)) > 0) n += r;
+    sc(SYS_CLOSE, fd, 0, 0, 0, 0, 0);
+    buf[n] = 0;
+    return n;
+}
+static int file_flag(const char *path) { /* /tmp/q2mono, /tmp/q2swap: an int, 1 when on */
+    char b[16];
+    return read_small(path, b, sizeof b) > 0 && b[0] == '1';
+}
+/* The Q2's DAC: after the open on the jack its mute and PCM mode are cleared
+ * (hciplayer mutes it as it lets go of the PCM), and the mute set again at close. */
+static void dac(unsigned long request, int value) {
+    long fd = sc(SYS_OPEN, (long)"/dev/shanling_dac", O_RDWR | O_CLOEXEC, 0, 0, 0, 0);
+    if (fd < 0) return;
+    sc(SYS_IOCTL, fd, (long)request, (long)&value, 0, 0, 0);
+    sc(SYS_CLOSE, fd, 0, 0, 0, 0, 0);
+}
+/* "usb": the card /proc/asound/cards lists as USB-Audio, as plughw:N,0. */
+static void usb_device(char *out) {
+    char cards[2048];
+    const char *dev = "plughw:1,0";
+    for (unsigned i = 0; i < 11; i++) out[i] = dev[i];
+    if (read_small("/proc/asound/cards", cards, sizeof cards) <= 0) return;
+    for (char *line = cards; *line;) {
+        char *end = line;
+        while (*end && *end != '\n') ++end;
+        int usb = 0;
+        for (char *c = line; c + 9 <= end; ++c)
+            if (c[0]=='U'&&c[1]=='S'&&c[2]=='B'&&c[3]=='-'&&c[4]=='A'&&c[5]=='u'&&c[6]=='d'&&c[7]=='i'&&c[8]=='o') usb = 1;
+        const char *d = line;
+        while (*d == ' ') ++d;
+        if (usb && *d >= '0' && *d <= '9') {
+            out[7] = *d; /* plughw:N,0 for a single-digit card */
+            return;
+        }
+        line = *end ? end + 1 : end;
+    }
+}
 static int alsa_try_open(const char *device) {
     if (alsa_open_fn(&audio_pcm, device, 0, 1) != 0) return -1;
     if (alsa_set_params_fn(audio_pcm, 2, 3, 2, Q2_AUDIO_RATE, 1, 68000) != 0) {
@@ -122,10 +178,29 @@ int q2_audio_open(void) {
             return -1;
         }
     }
-    /* plughw first (rate conversion if the hardware cannot do 22050 Hz),
-     * "default" as a fallback; both may fail on a device without ALSA. */
-    if (alsa_try_open("plughw:0,0") == 0) return 0;
-    if (alsa_try_open("default") == 0) return 0;
+    /* The firmware's output (argv[1]); none (older firmware, or run by hand) is the jack. */
+    char usb[16];
+    const char *device = arg_device && *arg_device ? arg_device : "plughw:0,0";
+    if (text_equal(device, "usb")) usb_device(usb), device = usb;
+    audio_jack = text_equal(device, "plughw:0,0");
+    /* argv[2] off the jack: NN is a soft volume the game applies, hNN the DAC's (unity here). */
+    soft_volume = 100;
+    if (arg_volume && *arg_volume >= '0' && *arg_volume <= '9') {
+        int v = 0;
+        for (const char *c = arg_volume; *c >= '0' && *c <= '9'; ++c) v = v * 10 + (*c - '0');
+        soft_volume = v > 100 ? 100 : v;
+    }
+    audio_mono = file_flag("/tmp/q2mono");
+    audio_swap = file_flag("/tmp/q2swap");
+    /* hciplayer lets go of the PCM a moment after Q2 Pod stops it, and bluealsa
+     * claims its PCM late: retry for 2 s on the jack, 5 s on Bluetooth and USB. */
+    for (int i = 0; i < (audio_jack ? 20 : 50) && !term_requested; ++i) {
+        if (alsa_try_open(device) == 0) {
+            if (audio_jack) { dac(0xc0044d1bu, 0); dac(0xc0044d1fu, 0); } /* PCM mode, unmute */
+            return 0;
+        }
+        sleep_ms(100);
+    }
     q2_log("q2-pico8: ALSA open failed, running silent\n");
     return -1;
 }
@@ -135,6 +210,7 @@ void q2_audio_close(void) {
         alsa_drop_fn(audio_pcm);
         alsa_close_fn(audio_pcm);
         audio_pcm = 0;
+        if (audio_jack) dac(0xc0044d1fu, 1); /* mute again, as Q2 Pod expects */
     }
     if (alsa_handle) {
         dlclose(alsa_handle);
@@ -146,6 +222,18 @@ int q2_audio_available(void) { return audio_pcm != 0; }
 
 void q2_audio_write(const int16_t *samples, unsigned frames) {
     if (!audio_pcm || !samples || !frames) return;
+    static int16_t mixed[2048 * Q2_AUDIO_CHANNELS];
+    if (frames > 2048) frames = 2048;
+    if (soft_volume != 100 || audio_mono || audio_swap) {
+        for (unsigned i = 0; i < frames; i++) {
+            int l = samples[2 * i], r = samples[2 * i + 1];
+            if (audio_mono) l = r = (l + r) / 2;
+            if (audio_swap) { int t = l; l = r; r = t; }
+            mixed[2 * i] = (int16_t)(l * soft_volume / 100);
+            mixed[2 * i + 1] = (int16_t)(r * soft_volume / 100);
+        }
+        samples = mixed;
+    }
     const int16_t *cursor = samples;
     unsigned remaining = frames;
     while (remaining) {
@@ -165,7 +253,20 @@ void q2_audio_write(const int16_t *samples, unsigned frames) {
         remaining -= (unsigned)written;
     }
 }
+/* SIGTERM: Q2 Pod's way to end a game (Return and Centre held with gameview=1,
+ * USB storage, an App Store update, power-off). Ending through the normal path
+ * closes the PCM (muting the DAC again) and lets FAKE-08 write cart data. */
+typedef void (*q2_sighandler)(int);
+extern q2_sighandler signal(int, q2_sighandler);
+static void on_term(int sig) { (void)sig; term_requested = 1; }
+void q2_set_args(int argc, char **argv) {
+    arg_device = argc > 1 ? argv[1] : 0;
+    arg_volume = argc > 2 ? argv[2] : 0;
+    signal(15 /* SIGTERM */, on_term);
+    signal(2 /* SIGINT */, on_term);
+}
 #else /* !Q2_GLIBC: freestanding browser preview has no audio device. */
+void q2_set_args(int argc, char **argv) { (void)argc; (void)argv; }
 int q2_audio_open(void) { return -1; }
 void q2_audio_close(void) {}
 int q2_audio_available(void) { return 0; }
@@ -185,6 +286,20 @@ int q2_open(void) {
     input_state=(q2_input){0};
 #ifdef Q2_GLIBC
     physical_buttons=touch_button=back_pending=0;
+    wheel_bit=0;
+    {   /* gameview: firmware that forwards all five buttons and ends the game on
+         * Return+Centre held, not on Return held (q2-pod docs/internals.md, Card games). */
+        char caps[512];
+        gameview=0;
+        if(read_small("/tmp/q2-addon.caps",caps,sizeof caps)>0)
+            for(char *w=caps;*w;){
+                while(*w==' '||*w=='\n')++w;
+                char *e=w;while(*e&&*e!=' '&&*e!='\n')++e;
+                char c=*e;*e=0;
+                if(text_equal(w,"gameview"))gameview=1;
+                *e=c;w=e;
+            }
+    }
 #endif
     fb=(int)sc(SYS_OPEN,(long)"/dev/fb0",O_RDWR|O_CLOEXEC,0,0,0,0);
     if(fb<0) return -1;
@@ -228,16 +343,44 @@ q2_input q2_read_input(void) {
     char m[64]; long n;
     input_state.pressed=0;
     input_state.wheel=0;
+#ifdef Q2_GLIBC
+    if(term_requested)input_state.quit=1;
+#endif
     while(sock>=0&&(n=sc(SYS_RECV,sock,(long)m,sizeof m-1,MSG_DONTWAIT,0,0))>0) {
         m[n]=0;
         if(m[0]=='w'&&m[1]==' ') {
-            int w=number(m+2);
+            /* Q2 Pod's travel rises anticlockwise (200 a turn); turned here so
+             * clockwise, the Q2's "down/next", is positive and Right. */
+            int w=-number(m+2);
             input_state.wheel+=w;
-            /* Wheel is relative steering: synthesize brief D-pad presses. */
-            if(w>0)input_state.pressed|=Q2_RIGHT;
-            if(w<0)input_state.pressed|=Q2_LEFT;
+            unsigned bit=w>0?Q2_RIGHT:w<0?Q2_LEFT:0;
+#ifdef Q2_GLIBC
+            if(game_mode&&bit) {
+                /* In a cart the wheel steers: Left or Right stays held while it
+                 * turns (and ~120 ms after), so btn() sees a held direction
+                 * instead of one-frame taps; btnp() gets the first edge. */
+                if(wheel_bit!=bit||(int)(q2_millis()-wheel_until)>0)input_state.pressed|=bit;
+                wheel_bit=bit;
+                unsigned hold=120u+(unsigned)(w<0?-w:w)*4u;
+                wheel_until=q2_millis()+(hold>300u?300u:hold);
+                continue;
+            }
+#endif
+            /* Menus: one brief press per wheel report. */
+            input_state.pressed|=bit;
         } else if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
             int code=number(m+4);
+#ifdef Q2_GLIBC
+            if(game_mode&&gameview) {
+                /* Pocket Boy's layout: Return, Play/Pause, Previous, Next are
+                 * Up, Down, Left, Right; Centre is O. */
+                unsigned bit=code==170?Q2_UP:code==171?Q2_DOWN:code==222?Q2_LEFT:
+                             code==223?Q2_RIGHT:code==218?Q2_O:0;
+                if(m[2]=='d'){input_state.pressed|=bit&~physical_buttons;physical_buttons|=bit;}
+                else if(m[2]=='u')physical_buttons&=~bit;
+                continue;
+            }
+#endif
             if(code==170&&m[2]=='u') {
 #ifdef Q2_GLIBC
                 unsigned now=q2_millis();
@@ -289,9 +432,20 @@ q2_input q2_read_input(void) {
         }
     }
 #ifdef Q2_GLIBC
-    input_state.buttons=physical_buttons|touch_button;
+    unsigned wheel_held=wheel_bit&&(int)(q2_millis()-wheel_until)<0?wheel_bit:0;
+    if(!wheel_held)wheel_bit=0;
+    input_state.buttons=physical_buttons|touch_button|wheel_held;
 #endif
     return input_state;
+}
+
+void q2_set_game_mode(int on) {
+#ifdef Q2_GLIBC
+    game_mode=on!=0;
+    physical_buttons=touch_button=back_pending=wheel_bit=0;
+#else
+    (void)on;
+#endif
 }
 
 static void copy_page(q2_pixel *dst,const q2_pixel *src) {
