@@ -175,10 +175,11 @@ jobs:
                         .pico8/licenses/Liberation-Sans-OFL.txt .pico8/licenses/Go.txt; do
             unzip -Z1 dist/q2-pico8-playable-experimental.zip | grep -Fx "$member"
           done
-      - uses: actions/upload-artifact@v6
+      - name: Upload playable install ZIP directly
+        uses: actions/upload-artifact@v7
         with:
-          name: q2-pico8-playable-experimental
           path: dist/q2-pico8-playable-experimental.zip
+          archive: false
           if-no-files-found: error
   release:
     name: Publish validated playable build
@@ -221,10 +222,11 @@ jobs:
           echo "publish=true" >> "$GITHUB_OUTPUT"
       - name: Download tested playable build
         if: steps.version.outputs.publish == 'true'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
-          name: q2-pico8-playable-experimental
+          name: q2-pico8-playable-experimental.zip
           path: dist
+          skip-decompress: true
       - name: Create or update GitHub Release
         if: steps.version.outputs.publish == 'true'
         env:
@@ -233,7 +235,10 @@ jobs:
         run: |
           set -euo pipefail
           assets=(dist/q2-pico8-playable-experimental.zip)
-          for asset in "${assets[@]}"; do test -s "$asset"; done
+          for asset in "${assets[@]}"; do
+            unzip -tq "$asset"
+            unzip -p "$asset" .pico8/q2app | grep -Fx 'name=PICO-8'
+          done
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           else
