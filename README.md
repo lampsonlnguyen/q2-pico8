@@ -69,7 +69,27 @@ The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 - `src/q2_platform.c`: ALSA audio for the glibc build, resolved at runtime with `dlopen("libasound.so.2")` (same pattern as q2-atari2600); the freestanding browser build has no audio device and its stubs are no-ops.
 - `src/fake08_main.cpp`: selects a cartridge with the existing Q2 browser, opens the real FAKE-08 `Vm`, loads the selected file, runs the VM loop and closes it cleanly.
 - `src/q2_platform.c`: renders normal 16-color and FAKE-08's alternate 128–143 colors using the per-frame screen palette map.
-- `.github/workflows/fake08-port.yml`: checks that the freestanding browser still builds and compiles the FAKE-08-specific C++ files against upstream revision `814991a2571ad3970e386cef48f3b148aa1c27b9`.
+- `.github/workflows/fake08-port.yml`: builds and tests the freestanding browser, links the real FAKE-08 engine, runs host gameplay/audio regression tests, cross-compiles the device ZIP, and publishes version-tagged releases. The FAKE-08 upstream source is pinned to `814991a2571ad3970e386cef48f3b148aa1c27b9`.
+
+### Automated builds and GitHub releases
+
+The [Q2 PICO-8 bridge workflow](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml) runs on pushes to `main`, pull requests, manual dispatches, and version tags (`v*`). It:
+
+- Runs `make check` and verifies the browser-preview ZIP.
+- Links the real FAKE-08 VM and runs the host Q2 simulation: cartridge loading, controls, rendering/frame pacing, and audio. A `q2-pico8-host-simulation-report` artifact contains the test report and summary.
+- Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8-playable-experimental` and `q2-pico8-browser-preview` artifacts.
+- **Only after both test/build jobs succeed for a version tag**, creates or updates a GitHub Release with `q2-pico8-playable-experimental.zip` and `q2-femto8-browser-preview.zip`. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
+
+To publish a tested version, push a version tag pointing to the desired commit:
+
+```sh
+git switch main
+git pull --ff-only
+git tag v0.3.0-alpha
+git push origin v0.3.0-alpha
+```
+
+Regular pushes and pull requests upload downloadable Actions artifacts but **do not** create GitHub Releases. A version-tagged release fails closed if either the gameplay tests or device build fail. The host simulation does not replace testing on physical Q2 hardware.
 
 ### Trying the experimental MIPS engine build
 
