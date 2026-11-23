@@ -96,7 +96,7 @@ def main():
         shown = pixel(d, 1950, 17, 229)
         hidden = pixel(d, 2300, 17, 229)
         expect(sum(shown) > 100 and sum(hidden) < 20, "toggle hides the D-pad")
-        expect(sum(pixel(d, 2300, 350, 17)) > 20, "Menu remains visible")
+        expect(sum(pixel(d, 2300, 256, 25)) > 20, "Menu remains visible")
         x3, y3, c3 = circle(d, 2350)
         x4, y4, c4 = circle(d, 3350)
         expect(abs(x4 - x3) < 1 and abs(y4 - y3) < 1 and c4 == c3,

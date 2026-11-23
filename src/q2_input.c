@@ -30,8 +30,8 @@ static const control controls[] = {
     {4,   190, 78, 78, 0,        DPAD,  0, {0}},
     {292, 228, 34, 34, Q2_O,     ROUND, 0, {0,28,34,34,34,28,0}},
     {333, 190, 34, 34, Q2_X,     ROUND, 0, {0,34,20,8,20,34,0}},
-    {331, 6,   38, 22, Q2_PAUSE, PILL,  1, {0,62,0,62,0,62,0}},  /* Q2 game menu */
-    {6,   6,   38, 22, Q2_TOGGLE,PILL,  1, {0,0,0,0,0,0,0}},     /* show/hide; glyph drawn */
+    {237, 14,  38, 22, Q2_PAUSE, PILL,  1, {0,62,0,62,0,62,0}},  /* Q2 game menu */
+    {100, 14,  38, 22, Q2_TOGGLE,PILL,  1, {0,0,0,0,0,0,0}},     /* show/hide; glyph drawn */
 };
 enum { CONTROL_COUNT = sizeof controls / sizeof controls[0] };
 static const unsigned char arrows[4][7] = {
@@ -166,20 +166,23 @@ static int control_visible(const control *c) {
 
 /* The D-pad is a 3x3 grid: arms give one direction, corners two. */
 static unsigned dpad_keys(const control *c, int x, int y) {
-    int col = (x - c->x) * 3 / c->w, row = (y - c->y) * 3 / c->h;
+    int cell = c->w / 3;
     unsigned keys = 0;
-    if (col == 0) keys |= Q2_LEFT;
-    if (col == 2) keys |= Q2_RIGHT;
-    if (row == 0) keys |= Q2_UP;
-    if (row == 2) keys |= Q2_DOWN;
+    if (x < c->x + cell) keys |= Q2_LEFT;
+    if (x >= c->x + 2 * cell) keys |= Q2_RIGHT;
+    if (y < c->y + cell) keys |= Q2_UP;
+    if (y >= c->y + 2 * cell) keys |= Q2_DOWN;
     return keys;
 }
 static int inside(const control *c, int x, int y) {
-    if (x < c->x || y < c->y || x >= c->x + c->w || y >= c->y + c->h) return 0;
+    /* Keep the artwork compact and give taps extra room around it. */
+    const int padding = c->kind == DPAD ? 8 : 11;
+    if (x < c->x - padding || y < c->y - padding ||
+        x >= c->x + c->w + padding || y >= c->y + c->h + padding) return 0;
     if (c->kind == ROUND) {
-        /* A touch target a little larger than the drawn circle. */
         int dx = 2 * (x - c->x) - c->w, dy = 2 * (y - c->y) - c->h;
-        return dx * dx + dy * dy <= c->w * c->w * 5 / 4;
+        int diameter = c->w + 2 * padding;
+        return dx * dx + dy * dy <= diameter * diameter;
     }
     return 1;
 }

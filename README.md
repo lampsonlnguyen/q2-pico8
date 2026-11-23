@@ -85,8 +85,8 @@ and can be enabled separately for left/right during games.
 | Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
 | Centre | X by default, configurable to O |
 | Touch D-pad and the other action button | Directions and O or X |
-| Touch **≡** (top right) | Open Menu |
-| Touch the pad icon (top left) | Show or hide the touch controls |
+| Touch **≡** (near the top centre, on the right) | Open Menu |
+| Touch the pad icon (near the top centre, on the left) | Show or hide the touch controls |
 | Hold Return (0.7 s) | Leave the app |
 
 Menu pauses the cart. Use Previous and Next to move, Centre to select and Return
