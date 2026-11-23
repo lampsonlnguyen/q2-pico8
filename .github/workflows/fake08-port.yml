@@ -70,7 +70,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive sudo -E apt-get install -y --no-install-recommends \
             -o Acquire::Retries=1 -o Acquire::http::Timeout=20 \
             g++-11-mipsel-linux-gnu gcc-11-mipsel-linux-gnu file curl unzip zip \
-            binutils xz-utils squashfs-tools python3 qemu-user
+            binutils xz-utils squashfs-tools python3 qemu-user patchelf
       - name: Fetch original Q2 V1.36 firmware and build hardware sysroot
         run: |
           set -euo pipefail
@@ -116,6 +116,12 @@ jobs:
           readelf -l dist/player/.pico8/q2-pico8 | grep -F '/lib/ld-linux-mipsn8.so.1'
           readelf -A dist/player/.pico8/q2-pico8
           readelf -d dist/player/.pico8/q2-pico8 | grep NEEDED || true
+          # ld.so as DT_NEEDED lets its dl-minimal malloc/realloc win over
+          # libc's and aborts in the FAKE-08 Vm constructor (exit 127).
+          if readelf -d dist/player/.pico8/q2-pico8 | grep -F 'ld-linux-mipsn8.so.1'; then
+            echo 'ld-linux-mipsn8.so.1 must not be DT_NEEDED' >&2
+            exit 1
+          fi
       - name: Smoke-test MIPS executable startup with firmware loader
         run: |
           set -euxo pipefail
