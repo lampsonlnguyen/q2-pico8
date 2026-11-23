@@ -17,15 +17,21 @@ inc=(-Isrc "-I$src/source" "-I$src/libs/z8lua" "-I$src/libs/miniz" "-I$src/libs/
 objs=()
 cc1(){ local f=$1 o="$out/$(echo "$1" | tr '/.' '__').o"; shift
        [ "$o" -nt "$f" ] || "$@" -c "$f" -o "$o"; objs+=("$o"); }
-for f in "$src"/source/*.cpp; do [ "${f##*/}" = main.cpp ] && continue; cc1 "$f" clang++ "${flags[@]}" "${cxxflags[@]}" "${inc[@]}"; done
+overlay="$(bash tools/fake08-overlay.sh "$src" "$out/fake08-overlay")"   # pause-menu labels
+for f in "$src"/source/*.cpp; do
+    [ "${f##*/}" = main.cpp ] && continue
+    [ "${f##*/}" = vm.cpp ] && f="$overlay/vm.cpp"
+    cc1 "$f" clang++ "${flags[@]}" "${cxxflags[@]}" "${inc[@]}"
+done
 for f in "$src"/libs/lodepng/*.cpp; do cc1 "$f" clang++ "${flags[@]}" "${cxxflags[@]}" "${inc[@]}"; done
 for f in "$src"/libs/z8lua/*.c "$src"/libs/miniz/*.c "$src"/libs/simpleini/*.c; do
     [ -f "$f" ] || continue
     case "${f##*/}" in lua.c|luac.c|ltests.c) continue;; esac
     cc1 "$f" clang++ -x c++ "${flags[@]}" "${cxxflags[@]}" "${inc[@]}"   # upstream builds these as C++
 done
-for f in src/q2_platform.c src/cart_browser.c src/crt-q2pp.c; do cc1 "$f" clang "${flags[@]}" -DQ2_GLIBC -std=gnu11 -Wall "${inc[@]}"; done
-for f in src/fake08_host.cpp src/fake08_main.cpp; do cc1 "$f" clang++ "${flags[@]}" "${cxxflags[@]}" -DQ2_GLIBC "${inc[@]}"; done
+for f in src/q2_platform.c src/q2_input.c src/itch.c src/crt-q2pp.c; do cc1 "$f" clang "${flags[@]}" -DQ2_GLIBC -std=gnu11 -Wall "${inc[@]}"; done
+for f in src/fake08_host.cpp src/fake08_main.cpp src/app.cpp src/ui.cpp src/covers.cpp \
+         src/coverflow.cpp src/library.cpp src/getgames.cpp; do cc1 "$f" clang++ "${flags[@]}" "${cxxflags[@]}" -DQ2_GLIBC "${inc[@]}"; done
 ld.lld -m elf32ltsmip -e __start --dynamic-linker /lib/ld-linux-mipsn8.so.1 --image-base=0x400000 \
     -z noexecstack --hash-style=sysv --eh-frame-hdr --gc-sections --build-id=none -s -L"$sysroot/lib" \
     -o "$stage/.pico8/q2-pico8" "${objs[@]}" "$cxx/lib/libc++.a" \
@@ -33,5 +39,6 @@ ld.lld -m elf32ltsmip -e __start --dynamic-linker /lib/ld-linux-mipsn8.so.1 --im
 sed 's/^name=.*/name=PICO-8/' q2app > "$stage/.pico8/q2app"
 : > "$stage/.pico8/carts/.keep"
 cp "$src/LICENSE.MD" "$stage/.pico8/FAKE-08-LICENSE.md"
+# Get Games helper and notices: see tools/build-fake08.sh, which CI packages.
 (cd "$stage" && zip -q -FS ../q2-pico8.zip .pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md)
 file "$stage/.pico8/q2-pico8"; echo "Created dist/q2-pico8.zip"

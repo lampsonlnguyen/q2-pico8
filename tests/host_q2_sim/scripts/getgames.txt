@@ -1,0 +1,12 @@
+# Menu -> Get Games (fake helper) -> Celeste Classic -> Download -> back.
+300 key PLAY press
+600 key CENTRE press
+2400 key CENTRE press
+2800 key CENTRE press
+4300 key NEXT press
+4500 key CENTRE press
+5200 key RETURN press
+5600 key RETURN press
+6200 key RETURN press
+7000 key RETURN press
+9000 quit

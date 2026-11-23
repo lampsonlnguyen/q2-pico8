@@ -32,6 +32,9 @@ q2_input q2_read_input(void){q2_input in={0};in.quit=1;return in;}
 unsigned q2_millis(void){return 0;}
 #endif
 void q2_present(const uint8_t *p,const uint32_t colors[16]){(void)p;(void)colors;}
+static uint32_t canvas[Q2_WIDTH*Q2_HEIGHT];
+uint32_t *q2_canvas(void){return canvas;}
+void q2_present_canvas(void){}
 void q2_present_fake08(const uint8_t *p,const uint8_t map[16],
                        const uint32_t colors[144]){
     (void)p;(void)map;(void)colors;

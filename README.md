@@ -1,12 +1,13 @@
-# PICO-8 player for Q2 Pod — FAKE-08 port in progress
+# PICO-8 player for Q2 Pod
 
-The experimental player runs cartridges through the FAKE-08 VM. The native
-smoke test runs an original cartridge and checks that it renders frames
-and that the synth produces non-silent audio. Stereo sound is wired up
-through the Q2 ALSA path (see "Audio" below); the physical Q2 still needs
-a gameplay test to confirm sound actually comes out of the device.
+Plays PICO-8 cartridges on the Shanling Q2 with the
+[FAKE-08](https://github.com/jtothebell/fake-08) VM. Carts appear in a
+Cover Flow library, and **Get Games** finds free PICO-8 games on itch.io
+and downloads them over the Q2's Wi-Fi. Controls, Cover Flow and the
+itch.io browser follow [Pocket Boy](https://github.com/SlayTheEarth/q2-boy).
+Stereo sound goes through the Q2 ALSA path (see "Audio" below).
 
-## Install the experimental player
+## Install
 
 1. Download `q2-pico8-playable-experimental.zip` from the
    [latest release](https://github.com/lampsonlnguyen/q2-pico8/releases/latest).
@@ -14,48 +15,84 @@ a gameplay test to confirm sound actually comes out of the device.
    later.) Builds from unreleased commits are the
    **q2-pico8-playable-experimental** artifact of a successful
    [Q2 PICO-8 bridge run](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml).
-2. Extract that install ZIP to the root of the microSD card. If you already
-   installed the browser preview, replace `.pico8/q2app` and
-   `.pico8/q2-pico8` and keep your existing carts.
-3. Copy cartridge files ending in `.p8` or `.p8.png` into
-   `/.pico8/carts/` on the card. The browser scans up to 64 files and skips
-   names over 59 bytes.
-4. Open **Library → Games → PICO-8**. Turn the wheel to select a cart and
-   press Center to start. Back exits the picker.
-
-In the cart picker, turn the wheel one notch per cart and press Center to
-start one; Back leaves.
-
-During gameplay on Q2 Pod 1.9.0 and later (firmware with the `gameview`
-capability, which hands the game all five buttons):
-
-| Q2 control | PICO-8 |
-| --- | --- |
-| Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
-| Center | O |
-| Wheel | Left or Right, held while it turns (clockwise is Right) |
-| On-screen arrows, **O**, **X** | held input |
-| On-screen **≡** | pause menu (Continue, Reset cart, Exit to menu) |
-| Hold Return and Center together | exit to Q2 Pod |
-
-On Q2 Pod 1.8.9 and earlier, which don't forward Return to a game, Center is
-**O**, Play is **X**, Previous/Next are Left/Right, Back opens the pause menu,
-and Back twice within half a second exits (holding Back also exits: the
-firmware ends a game after a 700 ms Return hold). Either way the player
-saves cart data and closes the sound on its way out.
+2. Extract the ZIP to the root of the microSD card. When upgrading, replace
+   everything in `.pico8` except your `carts`, `covers` and `cdata` folders.
+3. Copy `.p8` or `.p8.png` carts into `/.pico8/carts/`, or use Get Games.
+4. Open **Library → Games → PICO-8**.
 
 If the app is missing, enable hidden files in your file manager and confirm
 `.pico8/q2app` and `.pico8/q2-pico8` are directly under the card root's
 `.pico8` folder. Reopen Library → Games after copying the files.
 
-`make check` builds and verifies the separate **PICO-8 Browser Preview**
-ZIP. Use it to test cartridge discovery on its own. Install the experimental
-player ZIP to run cartridges.
+## Library
+
+The library opens on Cover Flow. Each cart shows its own art: the picture of
+a `.p8.png` cart, or the `__label__` of a `.p8` cart drawn on a cart body. A
+PNG in `/.pico8/covers/` named after the cart file plus `.png` (for example
+`celeste.p8.png.png`) replaces it; Get Games saves the itch.io cover there.
+
+| Q2 control | Library |
+| --- | --- |
+| Wheel, Previous / Next, swipe | browse |
+| Centre, or tap the centre cover | play |
+| Tap a side cover | select it |
+| Play/Pause, or tap **⋯** | menu: Get Games, Sort (title or recently played), Refresh, Exit |
+| Return | leave the app |
+
+New carts copied to the card show up within a few seconds.
+
+## Controls in a cart
+
+The layout is Pocket Boy's:
+
+| Q2 control | PICO-8 |
+| --- | --- |
+| Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
+| Centre | O |
+| Wheel | Left or Right, held while it turns (clockwise is Right) |
+| On-screen arrows, **O**, **X** | held input |
+| On-screen **≡** | pause menu: Continue, Reset cart, **Exit to library**, **Exit to Q2 Pod** |
+| Hold Return and Centre together (1.2 s) | leave the app |
+
+On Q2 Pod 1.9.0 and later the firmware forwards all five buttons (its
+`gameview` capability). On older firmware the player takes the buttons over
+itself, as Pocket Boy does, by grabbing the Q2's GPIO key device, so the same
+layout applies. While it runs, the firmware does not see those keys, so use
+Return + Centre or the pause menu to leave. The grab ends when the app
+exits. If the keys cannot be grabbed, the earlier fallback applies: Centre is
+**O**, Play is **X**, Previous/Next are Left/Right, Back opens the pause menu
+and Back twice within half a second exits.
+
+The player saves cart data and closes the sound on its way out.
+
+## Get Games (itch.io)
+
+On a Q2 connected to Wi-Fi, open the library menu and choose **Get Games**.
+It lists itch.io's games
+[made with PICO-8](https://itch.io/games/made-with-pico-8) that the Q2 can
+actually play, page by page. Change **Sort** (Popular, Newest, Top rated) or
+**Price** (Free, Free and paid) at the top of the list. Each page is checked
+before it appears, so it can take a while; Return cancels.
+
+A game qualifies when it offers a `.p8` or `.p8.png` download (directly or
+inside a ZIP), or when it is a browser game made with PICO-8's web export
+("Web" in the list). For a web export, the helper reads the cartridge ROM
+from the export's JavaScript (`_cartdat`) and saves it as a standard
+`.p8.png` cart with the itch.io cover as its label. Free games download
+straight into the library as `<title> [itch <id>]`. **View on itch.io**
+shows a QR code of the game's page, for paid games and donations.
+
+Get Games runs a separate helper, `q2-pico8-itch`, from the same folder. It
+uses Pocket Boy's itch.io guest-download flow and the root certificates in
+`itch-ca.pem`. Downloads are staged on the SD card, not in RAM.
 
 ## Source files
 
-- `src/q2_platform.c`: MIPS32 syscalls, 375×320 rotated framebuffer, 2× Pico-8 image display and Q2 inputs.
-- `src/cart_browser.c/.h`: SD-card directory scan and 128×128 cartridge browser. `q2_cart_path()` returns the selected cartridge path ready for a future call to femto8's `p8_load()`.
+- `src/q2_platform.c`: MIPS32 syscalls, 375×320 rotated framebuffer (2× PICO-8 picture and the native-resolution UI canvas), the input socket and the GPIO key grab.
+- `src/q2_input.c`: the button, wheel and touch mapping, shared by the device and the host simulation.
+- `src/library.cpp`, `src/coverflow.cpp`, `src/covers.cpp`, `src/ui.cpp`: the Cover Flow library, its projection, cart artwork and text drawing.
+- `src/getgames.cpp`, `src/itch.c`, `src/itch-helper/`: Get Games, the helper process runner and the Go helper (`go test -mod=vendor` in that folder).
+- `src/cart_browser.c/.h`: SD-card directory scan and 128×128 cartridge browser, now used only by the freestanding browser preview.
 - `src/cart_browser_probe.c`: Hardware preview, which **does not execute** cartridges.
 - `src/femto8_bridge.c`: Earlier unlinked proof-of-concept for graphics and input integration with upstream femto8.
 - `tests/browser_test.c`: Unit test for cartridge discovery and path construction.
@@ -67,7 +104,8 @@ The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 
 - `src/fake08_host.cpp`: implements the upstream `Host` interface, wheel/Center/Back input translation, 2× framebuffer drawing, cartridge enumeration, frame timing and lifecycle, and the per-frame audio fill (see "Audio").
 - `src/q2_platform.c`: ALSA audio for the glibc build, resolved at runtime with `dlopen("libasound.so.2")` (same pattern as q2-atari2600); the freestanding browser build has no audio device and its stubs are no-ops.
-- `src/fake08_main.cpp`: selects a cartridge with the existing Q2 browser, opens the real FAKE-08 `Vm`, loads the selected file, runs the VM loop and closes it cleanly.
+- `src/fake08_main.cpp`: runs the library, opens the real FAKE-08 `Vm` for the chosen cart, runs the VM loop and returns to the library when the pause menu's "exit to library" loads FAKE-08's own menu cart.
+- `tools/fake08-overlay.sh`: compiles a copy of upstream `vm.cpp` whose pause menu says "exit to library" and "exit to q2 pod". The upstream checkout is not modified.
 - `src/q2_platform.c`: renders normal 16-color and FAKE-08's alternate 128–143 colors using the per-frame screen palette map.
 - `.github/workflows/fake08-port.yml`: builds and tests the freestanding browser, links the real FAKE-08 engine, runs host gameplay/audio regression tests, cross-compiles the device ZIP, and publishes version-tagged releases. The FAKE-08 upstream source is pinned to `814991a2571ad3970e386cef48f3b148aa1c27b9`.
 
@@ -141,37 +179,33 @@ only silence — last verified run wrote 4042 frames with peak sample
 
 ### Host Q2 simulation validation (no emulator, no firmware)
 
-`bash tests/host_q2_sim/run.sh` runs the real FAKE-08 VM + Q2 host
-natively on x86_64 through a host simulation of the Q2 hardware layer
-(framebuffer, input script, WAV audio sink, fake SD card at
-`/mnt/mmc/.pico8/carts`). Verified 2026-11-21 (see
-`tests/host_q2_sim/README.md` for what is real vs simulated):
+`bash tests/host_q2_sim/run.sh` runs the real player natively on x86_64:
+the library, Get Games, the FAKE-08 VM, the Q2 host and the input mapper,
+with a host simulation of the framebuffer, a scripted input socket (raw Q2
+key codes, wheel travel and touch), a WAV audio sink and a fake SD card
+(see `tests/host_q2_sim/README.md`). CI runs it on every push. It checks:
 
-- Cart browser: 5 carts listed, wheel +1 moves the selection to
-  `demo.p8`, Centre chooses it.
-- Pacing: GameLoop tick mean ~16.1 ms (target 16.7 ms); distinct
-  frames every ~32.0 ms for 30 FPS carts (`demo.p8`) and ~16.1 ms
-  for 60 FPS carts (`update60.p8`); audio fills alternate 367/368
-  frames per tick with no drift.
-- Audio: `audio.p8` / `update60.p8` produce 2.0 s of non-silent
-  audio (peak 8191, RMS ~4723, dominant 262 Hz) captured to WAV.
-- Controls: scripted LEFT/RIGHT/UP/DOWN move the circle by the
-  expected amounts, X resets it to centre, O changes its colour,
-  a single Back opens the pause menu (CONTINUE / RESET CART /
-  EXIT TO MENU / EXIT TO SETTINGS), touch taps hit the on-screen
-  controls, and a double-Back exits.
-- Invalid carts: a missing cart exits 2 with 0 frames. A cart with
-  broken Lua now also fails visibly instead of falling back to the
-  BIOS menu: the host pre-validates the cart's Lua (see
-  `src/cart_validate.h`) before starting the VM, shows a LOAD ERROR
-  screen with the cart name and the syntax error, and exits 2 on
-  Centre/Back. Verified in the host sim: `invalid.p8` exits 2 with
-  the error screen presented and no BIOS load, no GameLoop entry.
+- Library: carts listed, the wheel, Previous and a tap on a side cover
+  move the selection, the menu opens, Return leaves.
+- Library → cart → pause menu "exit to library" → back in the library.
+- Get Games with a stand-in helper: list, download, the cart appears.
+- Controls (`tests/host_q2_sim/check.py`): Previous/Next/Return/Play held
+  move the test cart's circle Left/Right/Up/Down, Centre is O, the
+  on-screen X recentres it, the wheel holds Right, and Return + Centre
+  held ends the app; in the fallback layout Play is X and Back twice exits.
+- A `.p8.png` cart in the layout the helper writes for web exports runs.
+- Pacing (~16.2 ms ticks; 30 and 60 FPS carts) and audio (non-silent,
+  262 Hz, 367/368 frames per tick).
+- Invalid carts fail visibly: a missing cart and a cart with broken Lua
+  show an error screen and exit 2, never FAKE-08's menu cart.
 
 ### Remaining device validation
 
 - Check cartridge loading, touch and physical controls, and frame pacing on
-  real Q2 hardware at both 30 and 60 FPS.
+  real Q2 hardware at both 30 and 60 FPS, including the GPIO grab on
+  firmware without `gameview`.
+- Try Get Games over Wi-Fi: catalog pages, downloads and web-export
+  conversion have only been tested offline (unit tests and a stand-in helper).
 - Confirm sound actually comes out of the Q2 speaker/headphones: the
   ALSA path above is implemented and verified in the native smoke test
   and the host simulation (WAV capture), but it has not yet been heard
@@ -185,4 +219,6 @@ This code does not bundle third-party games. `.p8` carts remain subject to their
 
 ## Licensing
 
-Q2 adapter: GPL-3.0-or-later; retain upstream femto8's MIT license notices when combined. No cartridge or PICO-8 proprietary assets are bundled.
+Q2 adapter: GPL-3.0-or-later. It includes code adapted from Pocket Boy
+(GPL-2.0-or-later) and ships third-party notices listed in `NOTICE.md`.
+No cartridge or PICO-8 proprietary assets are bundled.

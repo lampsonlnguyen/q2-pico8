@@ -1,0 +1,10 @@
+# Cover Flow library: wheel, Previous, a tap on a side cover, the menu.
+300 wheel 40
+700 wheel 40
+1100 key PREV press
+1500 touch 300 140 down
+1560 touch 300 140 up
+2200 key PLAY press
+2700 key RETURN press
+3000 key RETURN press
+5000 quit
