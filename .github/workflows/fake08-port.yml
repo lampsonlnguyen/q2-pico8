@@ -2,10 +2,9 @@ name: Q2 PICO-8 bridge
 on:
   push:
     branches: [main, q2-playable-controls]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
-  release:
-    types: [published]
 concurrency:
   group: q2-pico8-${{ github.ref }}
   cancel-in-progress: true
@@ -17,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install native and MIPS tools
-        run: sudo apt-get update && sudo apt-get install -y clang lld gcc g++ make unzip zip file
+        run: sudo apt-get update && sudo apt-get install -y clang lld gcc g++ make unzip zip file libpng-dev python3-numpy python3-pil
       - name: Verify existing freestanding Q2 browser
         run: |
           bash -n tools/build-fake08.sh
@@ -61,6 +60,21 @@ jobs:
             -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
       - name: Link the full FAKE-08 game engine against Q2 host ABI
         run: FAKE08_SRC=/tmp/fake-08 bash tools/test-fake08-link.sh
+      - name: Run host Q2 gameplay, input, rendering and audio regression tests
+        run: |
+          sudo mkdir -p /mnt/mmc
+          sudo chown "$(id -u):$(id -g)" /mnt/mmc
+          FAKE08_SRC=/tmp/fake-08 bash tests/host_q2_sim/run.sh "$RUNNER_TEMP/q2-pico8-host-sim"
+      - name: Upload gameplay simulation summary
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: q2-pico8-host-simulation-report
+          path: |
+            ${{ runner.temp }}/q2-pico8-host-sim/report.md
+            ${{ runner.temp }}/q2-pico8-host-sim/summary.json
+          if-no-files-found: ignore
+          retention-days: 14
 
   device:
     runs-on: ubuntu-24.04
@@ -142,8 +156,38 @@ jobs:
           name: q2-pico8-playable-experimental
           path: dist/q2-pico8-playable-experimental.zip
           if-no-files-found: error
-      - name: Attach player ZIP to the published release
-        if: github.event_name == 'release'
+  release:
+    name: Publish tagged build
+    needs: [bridge, device]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download tested playable build
+        uses: actions/download-artifact@v6
+        with:
+          name: q2-pico8-playable-experimental
+          path: dist
+      - name: Download tested browser preview
+        uses: actions/download-artifact@v6
+        with:
+          name: q2-pico8-browser-preview
+          path: dist
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/q2-pico8-playable-experimental.zip --clobber --repo "$GITHUB_REPOSITORY"
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          assets=(dist/q2-pico8-playable-experimental.zip dist/q2-femto8-browser-preview.zip)
+          for asset in "${assets[@]}"; do test -s "$asset"; done
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            flags=()
+            case "$TAG" in
+              *-alpha*|*-beta*|*-rc*) flags=(--prerelease) ;;
+            esac
+            gh release create "$TAG" "${assets[@]}" --verify-tag --title "$TAG" --generate-notes "${flags[@]}" --repo "$GITHUB_REPOSITORY"
+          fi
