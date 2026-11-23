@@ -46,12 +46,15 @@ std::string recent_path() { return app::data_dir() + "/recent.txt"; }
 void load_config() {
     if (loaded_config) return;
     loaded_config = true;
-    for (const auto &line : app::read_lines(config_path(), 16))
+    for (const auto &line : app::read_lines(config_path(), 16)) {
         if (line == "sort=recent") sort_mode = SORT_RECENT;
+        if (line == "controls=hidden") q2_overlay_set_visible(0);
+    }
     recent = app::read_lines(recent_path(), 50);
 }
 void save_config() {
-    app::write_lines(config_path(), {sort_mode == SORT_RECENT ? "sort=recent" : "sort=title"});
+    app::write_lines(config_path(), {sort_mode == SORT_RECENT ? "sort=recent" : "sort=title",
+                                     q2_overlay_visible() ? "controls=shown" : "controls=hidden"});
 }
 
 std::string lower(std::string s) {
@@ -139,12 +142,13 @@ void draw_shelf(unsigned now) {
 }
 
 /* --- menu ------------------------------------------------------------ */
-enum MenuItem { M_GET, M_SORT, M_REFRESH, M_EXIT, M_COUNT };
+enum MenuItem { M_GET, M_SORT, M_CONTROLS, M_REFRESH, M_EXIT, M_COUNT };
 
 std::string menu_label(int i) {
     switch (i) {
     case M_GET: return "Get Games from itch.io";
     case M_SORT: return std::string("Sort: ") + sort_names[sort_mode];
+    case M_CONTROLS: return q2_overlay_visible() ? "Touch controls: Shown" : "Touch controls: Hidden";
     case M_REFRESH: return "Refresh carts and covers";
     default: return "Exit to Q2 Pod";
     }
@@ -184,6 +188,10 @@ bool activate(int item, LibraryChoice &choice) {
         save_config();
         scan(keep);
         return false;
+    case M_CONTROLS:
+        q2_overlay_set_visible(!q2_overlay_visible());
+        save_config();
+        return false;
     case M_REFRESH:
         scan(keep);
         notify(std::to_string(carts.size()) + (carts.size() == 1 ? " cart" : " carts"));
@@ -217,6 +225,8 @@ void library_played(const std::string &cart) {
 
 LibraryChoice library_run(const std::string &keep, const std::string &message) {
     load_config();
+    /* Remember a show/hide made with the in-game toggle. */
+    if (q2_overlay_take_changed()) save_config();
     covers::set_dirs(app::cart_dir(), app::art_dir());
     scan(keep);
     Logger_Write("library: %zu carts, selected %d\n", carts.size(), selected);

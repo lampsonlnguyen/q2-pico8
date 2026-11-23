@@ -6,8 +6,8 @@
 1100 key CENTRE press
 2000 key PREV down
 2600 key PREV up
-4300 touch 340 230 down
-4400 touch 340 230 up
+4300 touch 350 17 down
+4400 touch 350 17 up
 4800 key PLAY press
 5100 key PLAY press
 5500 key CENTRE press

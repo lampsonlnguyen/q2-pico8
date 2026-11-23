@@ -437,6 +437,16 @@ static void copy_page(q2_pixel *dst,const q2_pixel *src) {
 /* FAKE-08 passes a 16-entry screen map whose values may address
  * the 128..143 alternate colors. Both video paths retain 2x scaling and
  * the Q2 framebuffer's rotated bottom-up storage. */
+/* Blend one overlay pixel into a framebuffer page (rotated storage). */
+static void plot_overlay(void *ctx,int x,int y,uint32_t rgb,unsigned alpha) {
+    if((unsigned)x>=Q2_WIDTH||(unsigned)y>=Q2_HEIGHT)return;
+    q2_pixel *p=(q2_pixel*)ctx+x*stride+(Q2_HEIGHT-1-y);
+    uint32_t under=*p;
+    if(alpha>256)alpha=256;
+    uint32_t rb=((rgb&0xff00ffu)*alpha+(under&0xff00ffu)*(256-alpha))>>8;
+    uint32_t g=((rgb&0x00ff00u)*alpha+(under&0x00ff00u)*(256-alpha))>>8;
+    *p=0xff000000u|(rb&0xff00ffu)|(g&0x00ff00u);
+}
 static void present_mapped(const uint8_t *pixels,const uint8_t *map,
                            const uint32_t *palette) {
     if(!memory||!pixels||!palette)return;
@@ -461,22 +471,7 @@ static void present_mapped(const uint8_t *pixels,const uint8_t *map,
             col[Q2_HEIGHT-1-y]=argb;
         }
     }
-    if(map){
-        unsigned held=q2_input_held();
-        for(unsigned i=0;i<q2_control_count();++i){
-            const q2_control *c=q2_control_at(i);
-            unsigned active=held&c->key;
-            for(int x=0;x<Q2_CONTROL_SIZE;++x){
-                q2_pixel *col=dest+(c->x+x)*stride;
-                for(int y=0;y<Q2_CONTROL_SIZE;++y){
-                    unsigned ink=x>=9&&x<23&&y>=9&&y<23&&
-                        (c->glyph[(y-9)/2]&(1u<<(6-(x-9)/2)));
-                    col[Q2_HEIGHT-1-c->y-y]=ink?0xffeeeeeeu:
-                        active?0xff326977u:0xff263247u;
-                }
-            }
-        }
-    }
+    if(map)q2_overlay_paint(plot_overlay,dest);
     if(can_pan){
         var[5]=page;
         if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0))visible=page;
