@@ -9,9 +9,13 @@ Stereo sound goes through the Q2 ALSA path (see "Audio" below).
 
 ## Install
 
-1. Download `q2-pico8-playable-experimental.zip` from the
+1. Download **only** `q2-pico8-playable-experimental.zip` from the
    [latest release](https://github.com/lampsonlnguyen/q2-pico8/releases/latest).
-   (v0.2.0-alpha and earlier crash on every cart load; use v0.3.0-alpha or
+   **Do not install `q2-femto8-browser-preview.zip` over the playable
+   app.** Both v0.4.0-alpha archives used `/.pico8/` and the browser
+   preview could overwrite the real emulator. As of v0.4.1-alpha the
+   browser preview is a CI-only developer artifact.
+   (v0.2.0-alpha and earlier crash on cart load; use v0.3.0-alpha or
    later.) Builds from unreleased commits are the
    **q2-pico8-playable-experimental** artifact of a successful
    [Q2 PICO-8 bridge run](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml).
@@ -23,6 +27,35 @@ Stereo sound goes through the Q2 ALSA path (see "Audio" below).
 If the app is missing, enable hidden files in your file manager and confirm
 `.pico8/q2app` and `.pico8/q2-pico8` are directly under the card root's
 `.pico8` folder. Reopen Library → Games after copying the files.
+
+## If the app starts on a black screen
+
+v0.4.0-alpha shipped both a real FAKE-08 player and a freestanding browser
+preview in separate ZIP files, but both installed **the same**
+`.pico8/q2-pico8` file. Installing the preview last overwrote the player.
+The preview cannot launch games. This is one confirmed packaging ambiguity;
+it is **not yet proven** to explain every black-screen report.
+
+1. Install **only** the latest `q2-pico8-playable-experimental.zip`.
+   Extract directly to the SD-card root and replace
+   `.pico8/q2-pico8` plus `.pico8/q2app`. Do not nest
+   `.pico8` within another folder. Keep `.pico8/carts`,
+   `.pico8/covers`, `.pico8/cdata` and other saved files.
+2. Restart PICO-8. The player now paints **Opening game library...**
+   before decoding covers. If library loading crashes, this screen
+   distinguishes the failure from a never-started executable.
+3. If the screen remains black, copy **`.pico8/pico.log`** from the SD
+   card and report which lines begin with `q2-pico8 startup:` or
+   `q2-pico8: cannot open /dev/fb0`. Also provide the Q2 Pod firmware
+   version and whether the loading screen appeared. The logger records
+   framebuffer geometry/IOCTL, socket, and library-entry failures.
+   A completely absent log may indicate a runtime-loader or install
+   problem before `main()` runs.
+
+The device build and host simulator cannot reproduce every physical Q2
+framebuffer or glibc failure. The diagnostics above are intended to
+identify the remaining device-specific cause rather than claiming an
+unverified hardware fix.
 
 ## Library
 
@@ -116,7 +149,7 @@ The [Q2 PICO-8 bridge workflow](https://github.com/lampsonlnguyen/q2-pico8/actio
 - Runs `make check` and verifies the browser-preview ZIP.
 - Links the real FAKE-08 VM and runs the host Q2 simulation: cartridge loading, controls, rendering/frame pacing, and audio. A `q2-pico8-host-simulation-report` artifact contains the test report and summary.
 - Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8-playable-experimental` and `q2-pico8-browser-preview` artifacts.
-- **Only after both test/build jobs succeed for a version tag**, creates or updates a GitHub Release with `q2-pico8-playable-experimental.zip` and `q2-femto8-browser-preview.zip`. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
+- **Only after both test/build jobs succeed for a version tag**, creates or updates a GitHub Release with **only** `q2-pico8-playable-experimental.zip`. The colliding browser preview remains available as a CI artifact for developers, but is not published alongside the playable app. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
 
 To publish a tested version, push a version tag pointing to the desired commit:
 
