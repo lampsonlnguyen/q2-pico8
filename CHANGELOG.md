@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1
+
+- The playable build downloads as a single `q2-pico8.zip` from GitHub Actions and Releases.
+- Physical directions follow Pocket Boy. Centre maps to X, the capacitive wheel is ignored, and touch O and X remain available.
+- The in-game menu adds Q2 Now Playing, Display and controls, Audio, ROM Library, and Exit to Q2 Pod.
+
 ## v0.4.2-alpha — starts on the Q2 again
 
 - **Fixes the black screen with no `pico.log` in v0.4.0/v0.4.1:** the Q2

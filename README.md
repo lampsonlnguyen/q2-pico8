@@ -158,18 +158,18 @@ The [Q2 PICO-8 bridge workflow](https://github.com/lampsonlnguyen/q2-pico8/actio
 - Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8.zip` directly as an Actions artifact.
 - **Only after both test/build jobs succeed for a new version on `main` (or an explicit version tag)**, creates a GitHub Release with **only** `q2-pico8.zip`. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
 
-To publish a **new tested alpha version**, update the `VERSION` file
-(e.g. `0.4.1-alpha`) and merge into `main`. GitHub Actions runs both
+To publish a **new tested version**, update the `VERSION` file
+(e.g. `1.0.1`) and merge into `main`. GitHub Actions runs both
 the real FAKE-08 host simulation and Q2 cross-build, then creates the
-`v<version>` tag and prerelease with **only the playable ZIP** if
+`v<version>` tag and GitHub Release with **only the playable ZIP** if
 every check passes. Subsequent pushes with the same VERSION do not
 publish duplicate releases. Explicit `v*` tags remain supported:
 
 ```sh
 git switch main
 git pull --ff-only
-git tag v0.4.1-alpha
-git push origin v0.4.1-alpha
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 Pull requests upload downloadable test artifacts without publishing releases.
