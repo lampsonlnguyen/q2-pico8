@@ -7,6 +7,25 @@ and downloads them over the Q2's Wi-Fi. Controls, Cover Flow and the
 itch.io browser follow [Pocket Boy](https://github.com/SlayTheEarth/q2-boy).
 Stereo sound goes through the Q2 ALSA path (see "Audio" below).
 
+## Emulator engine: FAKE-08
+
+**The playable Q2 PICO-8 app uses [FAKE-08](https://github.com/jtothebell/fake-08), not Femto-8.**
+The Q2 build links FAKE-08's VM and Lua runtime to a native MIPS/Q2
+platform layer. The Cover Flow library, controls, framebuffer and ALSA audio
+are Q2-specific integrations.
+
+| Component | Role |
+| --- | --- |
+| **FAKE-08** | Active cartridge emulator inside the playable ZIP |
+| **Q2 platform and library** | MIPS display, input, Cover Flow and audio |
+| **Femto-8** | Historical, unlinked proof-of-concept; **not** the playable engine |
+| **Standalone browser preview** | Developer-only cartridge browser, **not an emulator** |
+
+The installable `q2-pico8-playable-experimental.zip` uses **FAKE-08**.
+The older `q2-femto8-browser-preview.zip` name refers only to a
+non-playable preview, not to the engine used in the player. Since
+v0.4.1-alpha, GitHub releases include only the playable ZIP.
+
 ## Install
 
 1. Download **only** `q2-pico8-playable-experimental.zip` from the
@@ -127,11 +146,11 @@ uses Pocket Boy's itch.io guest-download flow and the root certificates in
 - `src/getgames.cpp`, `src/itch.c`, `src/itch-helper/`: Get Games, the helper process runner and the Go helper (`go test -mod=vendor` in that folder).
 - `src/cart_browser.c/.h`: SD-card directory scan and 128×128 cartridge browser, now used only by the freestanding browser preview.
 - `src/cart_browser_probe.c`: Hardware preview, which **does not execute** cartridges.
-- `src/femto8_bridge.c`: Earlier unlinked proof-of-concept for graphics and input integration with upstream femto8.
+- `src/femto8_bridge.c`: Historical, unlinked Femto-8 proof-of-concept; **not compiled** into the playable FAKE-08 app.
 - `tests/browser_test.c`: Unit test for cartridge discovery and path construction.
 - `tests/audio.p8`: Original CC0 test cartridge that plays a sustained sine sfx; the native smoke test runs it to verify the synth produces non-silent audio. `tests/demo.p8` is the earlier silent frame-only cart.
 
-## FAKE-08 integration (experimental)
+## FAKE-08 integration (active engine; alpha release)
 
 The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 
@@ -149,7 +168,7 @@ The [Q2 PICO-8 bridge workflow](https://github.com/lampsonlnguyen/q2-pico8/actio
 - Runs `make check` and verifies the browser-preview ZIP.
 - Links the real FAKE-08 VM and runs the host Q2 simulation: cartridge loading, controls, rendering/frame pacing, and audio. A `q2-pico8-host-simulation-report` artifact contains the test report and summary.
 - Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8-playable-experimental` and `q2-pico8-browser-preview` artifacts.
-- **Only after both test/build jobs succeed for a version tag**, creates or updates a GitHub Release with **only** `q2-pico8-playable-experimental.zip`. The colliding browser preview remains available as a CI artifact for developers, but is not published alongside the playable app. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
+- **Only after both test/build jobs succeed for a new version on `main` (or an explicit version tag)**, creates a GitHub Release with **only** `q2-pico8-playable-experimental.zip`. The colliding browser preview remains available as a CI artifact for developers, but is not published alongside the playable app. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
 
 To publish a **new tested alpha version**, update the `VERSION` file
 (e.g. `0.4.1-alpha`) and merge into `main`. GitHub Actions runs both
@@ -169,9 +188,9 @@ Pull requests upload downloadable test artifacts without publishing releases.
 An alpha release is not considered physically validated until checked on a
 real Q2. A release fails closed if the gameplay tests or device build fail.
 
-### Trying the experimental MIPS engine build
+### Building the FAKE-08 MIPS player
 
-The optional cross-build script compiles FAKE-08's real interpreter and Lua
+The playable cross-build script compiles FAKE-08's interpreter and Lua
 runtime, the Q2 host and the cartridge picker. The CI `device` job runs
 this script and publishes the `q2-pico8-playable-experimental` artifact;
 it does **not** run as part of the normal browser-preview build.
@@ -217,7 +236,7 @@ The native smoke test drives the real synth with `tests/audio.p8`
 only silence — last verified run wrote 4042 frames with peak sample
 8191 over 12 rendered frames.
 
-### Host Q2 simulation validation (no emulator, no firmware)
+### Host Q2 simulation validation (FAKE-08 engine, simulated hardware)
 
 `bash tests/host_q2_sim/run.sh` runs the real player natively on x86_64:
 the library, Get Games, the FAKE-08 VM, the Q2 host and the input mapper,
@@ -251,11 +270,22 @@ key codes, wheel travel and touch), a WAV audio sink and a fake SD card
   and the host simulation (WAV capture), but it has not yet been heard
   on a real Q2 (or in the emulator).
 
-## Earlier Femto-8 investigation
+## Earlier Femto-8 investigation (historical only)
 
-Upstream [femto8](https://github.com/benbaker76/femto8) is MIT-licensed, but its C runtime includes Lua, libc filesystem functions and large work buffers. To run cartridges on the Q2, we need a MIPS32 userspace C library/sysroot and a Q2 backend in upstream `p8_emu.c`/`p8_input.c`. The current freestanding Q2 compiler is enough for the menu but **cannot link the full runtime**. Once integrated, use `q2_cart_path()` with femto8's existing `p8_load()` and then `p8_run()`. Also replace SDL initialization/frame presentation and confirm actual free RAM on Q2 hardware. Audio and full six-button mapping are separate tasks.
+The project previously investigated
+[Femto-8](https://github.com/benbaker76/femto8), and
+`src/femto8_bridge.c` remains as an unlinked proof-of-concept. That work
+**did not become the playable emulator**. The freestanding cartridge-browser
+preview also retains an older `femto8` ZIP filename.
 
-This code does not bundle third-party games. `.p8` carts remain subject to their authors' licenses, and `.p8.png` support is subject to the eventual upstream parser integration.
+The **current playable engine is FAKE-08**, linked by
+`tools/build-fake08.sh` through `src/fake08_main.cpp` and
+`src/fake08_host.cpp`. It runs supported `.p8` and `.p8.png` carts.
+Do not use the historical Femto-8 prototype to build or install the
+playable release.
+
+This project does not bundle third-party games. Cartridges remain subject
+to their authors' licenses.
 
 ## Licensing
 
