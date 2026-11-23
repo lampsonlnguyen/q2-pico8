@@ -28,7 +28,7 @@ jobs:
         run: |
           test -z "$(gofmt -l $(ls *.go))"
           go vet -mod=vendor .
-          go test -mod=vendor . libpng-dev python3-numpy python3-pil
+          go test -mod=vendor .
       - name: Verify existing freestanding Q2 browser
         run: |
           bash -n tools/build-fake08.sh
