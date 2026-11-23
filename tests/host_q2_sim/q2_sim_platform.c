@@ -545,3 +545,5 @@ long sc(long n, long a, long b, long c, long d, long e, long f) {
 /* The device-only argument hook; game mode switches the real mapper. */
 void q2_set_args(int argc, char **argv) { (void)argc; (void)argv; }
 void q2_set_game_mode(int on) { q2_input_set_game(on); }
+
+void q2_debug_stage(unsigned stage, uint32_t rgb, const char *what) { (void)stage; (void)rgb; (void)what; }

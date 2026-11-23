@@ -8,6 +8,7 @@
  * library and exits when it ends (host simulation and debugging).
  */
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string>
@@ -121,19 +122,27 @@ extern "C" int q2_main(void) {
     char **argv = nullptr;
 #endif
     (void)argc;
+    /* Startup follows v0.3.0's order: the display first, before FAKE-08's
+     * logger and any library work. Each stage leaves a coloured band and a
+     * startup.txt line (q2_debug_stage), so a hang names its stage. */
+    q2_debug_stage(1, 0xff004d, "main entered");
+    /* FAKE-08's logger copies every line to stdout and flushes it; the
+     * player has no console, so stdout goes nowhere rather than to whatever
+     * Q2 Pod's process left on fd 1. */
+    if (!freopen("/dev/null", "w", stdout)) q2_debug_stage(2, 0xff77a8, "stdout redirect failed");
     app::set_exe(argv ? argv[0] : nullptr);
-    /* Logger_Initialize reopens stderr as <data>/pico.log. */
-    Logger_Initialize((app::data_dir() + "/").c_str());
-    Logger_Write("q2-pico8 startup: executable entered, opening display\n");
+    q2_debug_stage(2, 0xffa300, "stdout and paths ready");
     if (q2_open()) {
         /* On a physical Q2 a framebuffer failure is an actual error.
          * Only the headless QEMU smoke test may explicitly opt out. */
-        Logger_Write("q2-pico8 startup: framebuffer unavailable; startup aborted\n");
-        int code = getenv("Q2_PICO8_ALLOW_NO_FB") ? 0 : 1;
-        Logger_Exit();
-        return code;
+        q2_debug_stage(3, 0x7e2553, "q2_open failed");
+        return getenv("Q2_PICO8_ALLOW_NO_FB") ? 0 : 1;
     }
-    Logger_Write("q2-pico8 startup: framebuffer and input ready\n");
+    q2_debug_stage(3, 0xffec27, "display and input open");
+    /* Logger_Initialize reopens stderr as <data>/pico.log. */
+    Logger_Initialize((app::data_dir() + "/").c_str());
+    Logger_Write("q2-pico8 startup: display and input ready\n");
+    q2_debug_stage(4, 0x00e436, "pico.log open");
     int status = 0;
     const char *only = getenv("Q2_PICO8_CART");
 #ifdef Q2_FAKE08_SMOKE
@@ -152,10 +161,12 @@ extern "C" int q2_main(void) {
         ui::caption(85, "PICO-8", ui::WHITE, ui::LARGE);
         ui::caption(137, "Opening game library...", ui::GRAY, ui::MEDIUM);
         q2_present_canvas();
+        q2_debug_stage(5, 0x29adff, "first frame presented");
         Logger_Write("q2-pico8 startup: first framebuffer frame submitted\n");
         std::string last, message;
         while (true) {
             Logger_Write("q2-pico8 startup: entering library loop\n");
+            q2_debug_stage(6, 0x83769c, "entering library");
             LibraryChoice choice = library_run(last, message);
             message.clear();
             if (choice.exit) break;

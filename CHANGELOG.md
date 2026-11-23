@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — startup diagnostics for the black screen
+
+- Startup follows v0.3.0's order again: the display opens before FAKE-08's
+  logger or any library work.
+- FAKE-08's logger no longer echoes to whatever stdout Q2 Pod's process
+  left behind (`/dev/null` instead).
+- Each startup stage draws a coloured band on screen and appends an
+  fsync'd line to `.pico8/startup.txt`, so a hang shows where it stopped
+  even after a forced power-off: 1 red main entered, 2 orange stdout and
+  paths, 3 yellow display open (dark purple: display failed), 4 green
+  pico.log open, 5 blue first frame, 6 lavender library, 7 first Cover Flow
+  frame (file only).
+
 ## v0.4.1-alpha — black-screen recovery and startup diagnostics
 
 - **Install correction:** v0.4.0-alpha accidentally published the browser-preview

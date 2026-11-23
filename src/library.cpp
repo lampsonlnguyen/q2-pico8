@@ -302,6 +302,11 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
             draw_shelf(now);
             if (menu) draw_menu(focus);
             q2_present_canvas();
+            static bool first_shelf = true;
+            if (first_shelf) {
+                first_shelf = false;
+                q2_debug_stage(7, 0xfff1e8, "first Cover Flow frame");
+            }
             dirty = false;
         }
         if (covers::pump(covers::pending() ? 24 : 0)) dirty = true;

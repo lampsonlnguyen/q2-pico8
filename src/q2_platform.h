@@ -34,6 +34,12 @@ uint32_t *q2_canvas(void);
 void q2_present_canvas(void);
 unsigned q2_millis(void);
 void q2_close(void);
+/* Startup diagnostics that survive a hang or a forced power-off: appends
+ * "stage N: what" to /mnt/mmc/.pico8/startup.txt (fsync'd) and draws band N
+ * (16 px at y = 8 + 20 N) in rgb straight onto the visible framebuffer page,
+ * opening it if q2_open() has not. Later frames replace the bands, so bands
+ * left on screen show how far startup got. No-op outside Q2_GLIBC builds. */
+void q2_debug_stage(unsigned stage, uint32_t rgb, const char *what);
 /* Q2 Pod starts an audio=1 game with the output device (plughw:0,0,
  * plug:bluealsa or usb) and, off the jack, its volume (NN soft, hNN shown
  * only) as arguments: q2_audio_open() uses them. */

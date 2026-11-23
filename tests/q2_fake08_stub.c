@@ -60,3 +60,5 @@ long sc(long a,long b,long c,long d,long e,long f,long g){
 }
 void q2_set_args(int argc,char **argv){(void)argc;(void)argv;}
 void q2_set_game_mode(int on){(void)on;}
+
+void q2_debug_stage(unsigned stage, uint32_t rgb, const char *what) { (void)stage; (void)rgb; (void)what; }
