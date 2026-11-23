@@ -29,6 +29,41 @@
 namespace {
 enum Played { PLAYED_LIBRARY, PLAYED_QUIT, PLAYED_ERROR };
 
+/* The Q2 firmware's dynamic loader (glibc 2.28 ld.so, as shipped in the Q2
+ * Pod sysroot) does not run the main executable's DT_INIT / DT_INIT_ARRAY.
+ * Verified 2026-11-23 with trivial C and C++ constructor tests under that
+ * loader, and with gdb on the v0.4.1 binary: every _GLOBAL__sub_I_* entry
+ * is present in .init_array but none of them runs before main, so every
+ * file-scope C++ object stays zero-initialised -- app::exe_dir, the
+ * library/covers/getgames globals, and FAKE-08's charset map/regex. The
+ * first use of any of them segfaults; v0.4.1 dies in app::set_exe, where a
+ * 15-byte SSO string is copy-assigned into the never-constructed exe_dir
+ * (memcpy(NULL, stack, 15), SIGSEGV si_addr=NULL). The same binary's
+ * .init_array runs correctly under a host glibc 2.39 loader, so this is
+ * the loader, not the link. Run the init array ourselves, once, before any
+ * global is touched -- but only if the loader has not already done so, so
+ * a future fixed firmware cannot double-construct the globals. The
+ * sentinel's constructor runs in .init_array itself: if the loader ran it,
+ * g_cxx_init_done is already true when main starts. */
+bool g_cxx_init_done = false;
+struct CxxInitSentinel {
+    CxxInitSentinel() { g_cxx_init_done = true; }
+};
+CxxInitSentinel g_cxx_init_sentinel;
+
+extern "C" {
+extern void (*__init_array_start[])(void);
+extern void (*__init_array_end[])(void);
+}
+
+void run_cxx_init_once() {
+    if (g_cxx_init_done) return;
+    for (void (**p)(void) = __init_array_start; p != __init_array_end; ++p) {
+        if (*p) (*p)();
+    }
+    g_cxx_init_done = true;
+}
+
 std::vector<std::string> wrap(const std::string &text, int width) {
     std::vector<std::string> lines;
     std::string line, word;
@@ -114,9 +149,11 @@ Played play(const std::string &cart, std::string &message) {
 
 #ifdef Q2_GLIBC
 int main(int argc, char **argv) {
+    run_cxx_init_once();
     q2_set_args(argc, argv);
 #else
 extern "C" int q2_main(void) {
+    run_cxx_init_once();
     int argc = 0;
     char **argv = nullptr;
 #endif
