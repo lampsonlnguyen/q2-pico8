@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
- * Q2 button, wheel and touch mapping, shared by the device platform
+ * Q2 button and touch mapping, shared by the device platform
  * (src/q2_platform.c) and the host simulation (tests/host_q2_sim), so the
  * simulation exercises the mapping that ships. No libc: it is also linked
  * into the freestanding browser preview.
@@ -28,23 +28,20 @@ void q2_input_set_full(int full);
 int q2_input_full(void);
 void q2_input_set_game(int game);
 void q2_input_key(int code, int down, unsigned now);
-/* travel: clockwise positive, 200 a turn. */
-void q2_input_wheel(int travel, unsigned now);
 /* action: 'd', 'm' or 'u'; x, y in the 375x320 view. */
 void q2_input_touch(char action, int x, int y, unsigned now);
 void q2_input_quit(void);
-/* Snapshot since the last call; clears edges and wheel travel. */
+/* Snapshot since the last call; clears edges. */
 q2_input q2_input_take(unsigned now);
 /* Logical buttons currently held (for drawing the touch overlay). */
 unsigned q2_input_held(void);
 
-/* On-screen gameplay controls, laid out like a handheld: a D-pad cross on
- * the left, O and X on the right (O lower, as on PICO-8's own layout), the
- * pause menu and a show/hide toggle in the top corners. Hidden, only the
- * pause and toggle buttons remain (faintly) and the rest ignore touches. */
+/* Touch O and X, Menu, and the overlay toggle. Menu and the toggle stay
+ * visible when O and X are hidden. */
 void q2_overlay_set_visible(int visible);
 int q2_overlay_visible(void);
-/* Set when the user toggles the overlay in a cart (to save the choice). */
+/* Mark a change so the next return to the library saves the choice. */
+void q2_overlay_mark_changed(void);
 int q2_overlay_take_changed(void);
 /* Paints the overlay: plot(ctx, x, y, rgb, alpha 0..256) for each pixel
  * to blend over the game picture, in 375x320 view coordinates. */

@@ -7,7 +7,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <algorithm>
 
 namespace app {
 namespace {
@@ -102,14 +101,4 @@ bool write_lines(const std::string &path, const std::vector<std::string> &lines)
     return ok && rename(tmp.c_str(), path.c_str()) == 0;
 }
 
-int wheel_steps(int &acc, unsigned &last, int travel, unsigned now, int tick) {
-    if (!travel) return 0;
-    if (!last || now - last > 300u) acc = 0;
-    last = now ? now : 1;
-    acc += std::max(-84, std::min(84, travel));
-    int steps = 0;
-    while (acc >= tick) { acc -= tick; ++steps; }
-    while (acc <= -tick) { acc += tick; --steps; }
-    return steps;
-}
 }

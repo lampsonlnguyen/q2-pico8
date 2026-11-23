@@ -3,7 +3,7 @@
  * (github.com/SlayTheEarth/q2-boy). The helper does all network work in
  * a child process; this screen stays responsive and Return cancels.
  *
- *   wheel / Previous / Next   move        Centre   choose
+ *   Previous / Next   move        Centre   choose
  *   Return                    back        touch    tap a row
  */
 #include "getgames.h"
@@ -22,7 +22,7 @@
 #include "ui.h"
 
 namespace {
-enum { FRAME_MS = 33, TOP = 48, ROW = 45, VISIBLE = 6, TICK = 21 };
+enum { FRAME_MS = 33, TOP = 48, ROW = 45, VISIBLE = 6 };
 const char *const sort_keys[] = {"popular", "newest", "top-rated"};
 const char *const sort_names[] = {"Popular", "Newest", "Top rated"};
 const char *const price_keys[] = {"free", "all"};
@@ -317,8 +317,6 @@ std::string getgames_run() {
     st.added.clear();
     st.mode = LIST;
     if (!st.loaded && st.job == NONE) load_page();
-    int wheel_acc = 0;
-    unsigned wheel_at = 0;
     std::vector<std::string> before = files_cache;
     while (true) {
         unsigned now = q2_millis();
@@ -326,7 +324,7 @@ std::string getgames_run() {
         if (st.job != NONE && itch_finished(&job_state, &ok)) finish_job(ok);
         q2_input in = q2_read_input();
         if (in.quit) { cancel_job(); q2_input_quit(); break; }
-        int steps = app::wheel_steps(wheel_acc, wheel_at, in.wheel, now, TICK);
+        int steps = 0;
         if (in.pressed & Q2_LEFT) --steps;
         if (in.pressed & Q2_RIGHT) ++steps;
         if (st.mode == QR) {
@@ -376,7 +374,7 @@ std::string getgames_run() {
         }
         q2_present_canvas();
         unsigned spent = q2_millis() - now;
-        unsigned frame = st.job != NONE || in.pressed || in.wheel || in.touch ? FRAME_MS : 60;
+        unsigned frame = st.job != NONE || in.pressed || in.touch ? FRAME_MS : 60;
         if (spent < frame) usleep((frame - spent) * 1000u);
     }
     std::vector<std::string> after = app::list_carts();

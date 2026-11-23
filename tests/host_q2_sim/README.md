@@ -17,7 +17,7 @@ Real (unchanged, host-compiled):
 - `src/fake08_main.cpp` and the library: Cover Flow (`library.cpp`,
   `coverflow.cpp`, `covers.cpp`, `ui.cpp`), Get Games (`getgames.cpp`,
   `itch.c`, running a stand-in helper) and the cart flow.
-- `src/q2_input.c` — the button, wheel and touch mapping the device uses.
+- `src/q2_input.c` — the button and touch mapping the device uses.
 
 Simulated (host-only, in `q2_sim_platform.c`):
 - `/dev/fb0` → a 375×320 in-memory framebuffer, dumped to PNG per frame.
@@ -58,7 +58,7 @@ bash tests/host_q2_sim/run.sh [outbase]
 two `.p8.png` carts from `tests/make_png_cart.py`, builds the sim, then runs
 the real `src/fake08_main.cpp`:
 
-1. **library** (`scripts/library.txt`) — Cover Flow: wheel, Previous, a tap
+1. **library** (`scripts/library.txt`) — Cover Flow: ignored wheel, Next, Previous, a tap
    on a side cover, the menu, Return leaves.
 2. **play-return** — library → `input.p8` → on-screen menu → "exit to
    library" → back in the library → Return.

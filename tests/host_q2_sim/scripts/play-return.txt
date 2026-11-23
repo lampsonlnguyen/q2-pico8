@@ -1,4 +1,4 @@
-# Library -> input.p8 -> pause menu "exit to library" -> Return leaves.
+# Library -> input.p8 -> Menu, then ROM Library -> Return leaves.
 # Library order: audio, Blue Circle, demo, input, orange.
 300 key NEXT press
 500 key NEXT press
@@ -8,8 +8,7 @@
 2600 key PREV up
 4300 touch 350 17 down
 4400 touch 350 17 up
-4800 key PLAY press
-5100 key PLAY press
-5500 key CENTRE press
+4800 touch 188 212 down
+4900 touch 188 212 up
 6500 key RETURN press
 9000 quit

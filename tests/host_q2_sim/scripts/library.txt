@@ -1,6 +1,7 @@
-# Cover Flow library: wheel, Previous, a tap on a side cover, the menu.
+# Cover Flow library: ignored wheel, Next, Previous, a tap on a side cover, the menu.
 300 wheel 40
-700 wheel 40
+700 key NEXT press
+900 key NEXT press
 1100 key PREV press
 1500 touch 300 140 down
 1560 touch 300 140 up

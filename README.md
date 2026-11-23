@@ -66,7 +66,7 @@ PNG in `/.pico8/covers/` named after the cart file plus `.png` (for example
 
 | Q2 control | Library |
 | --- | --- |
-| Wheel, Previous / Next, swipe | browse |
+| Previous / Next, swipe | browse |
 | Centre, or tap the centre cover | play |
 | Tap a side cover | select it |
 | Play/Pause, or tap **⋯** | menu: Get Games, Sort (title or recently played), Refresh, Exit |
@@ -76,36 +76,35 @@ New carts copied to the card show up within a few seconds.
 
 ## Controls in a cart
 
-The layout is Pocket Boy's:
+The physical directions follow Pocket Boy. The capacitive wheel is ignored throughout PICO-8.
 
 | Q2 control | PICO-8 |
 | --- | --- |
 | Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
-| Centre | O |
-| Wheel | Left or Right, held while it turns (clockwise is Right) |
-| On-screen D-pad (left) | held directions; its corners press two (diagonals) |
-| On-screen **O** and **X** (right, O lower) | held buttons |
-| On-screen **≡** (top right) | pause menu: Continue, Reset cart, **Exit to library**, **Exit to Q2 Pod** |
-| On-screen pad icon (top left) | hide or show the touch controls |
-| Hold Return and Centre together (1.2 s) | leave the app |
+| Centre | X |
+| Touch **O** and **X** | PICO-8 action buttons |
+| Touch **≡** (top right) | Open Menu |
+| Touch the pad icon (top left) | Show or hide O and X |
+| Hold Return and Centre together (1.2 s) | Leave the app |
 
-The touch controls are laid out like a handheld, after PICO-8's own
-controller picture: a D-pad cross on the left and O/X on the right, drawn
-translucently over the edges of the picture. Tap the pad icon at the top
-left to hide them for games you play with the buttons alone; the icon and
-**≡** stay as faint outlines so you can bring them back and still pause.
-Hidden controls ignore touches. **X** has no physical button in this layout,
-so keep the controls shown for games that use it. The library menu's
-**Touch controls** item sets the same thing, and the choice is remembered.
+Menu pauses the cart. Use Previous and Next to move, Centre to select and Return
+to go back, or tap a row. **Q2 Now Playing** opens the firmware's music screen
+and Return brings you back. **Display and controls** shows the button mapping
+and lets you show or hide O and X. **Audio** lets you mute the game or switch
+between game sound and Q2 Music. **ROM Library** closes the cart and opens
+Cover Flow. **Exit to Q2 Pod** closes the app. **Cartridge menu** opens
+FAKE-08's pause menu, including Reset cart and cart-specific actions.
 
-On Q2 Pod 1.9.0 and later the firmware forwards all five buttons (its
-`gameview` capability). On older firmware the player takes the buttons over
-itself, as Pocket Boy does, by grabbing the Q2's GPIO key device, so the same
-layout applies. While it runs, the firmware does not see those keys, so use
-Return + Centre or the pause menu to leave. The grab ends when the app
-exits. If the keys cannot be grabbed, the earlier fallback applies: Centre is
-**O**, Play is **X**, Previous/Next are Left/Right, Back opens the pause menu
-and Back twice within half a second exits.
+Touch O is the only O control. The pad icon and Menu remain available when O
+and X are hidden. The library remembers the overlay setting when you return.
+
+On firmware with `gameview`, Q2 Pod forwards all five physical buttons.
+On older firmware q2-pico8 attempts to grab the GPIO key device, as Pocket Boy
+does. If the grab fails, Return opens Menu and pressing it twice within half a
+second exits. Play/Pause, Previous, Next and Centre still provide Down, Left,
+Right and X. Q2 Now Playing and audio-source switching require firmware with
+both `audio2` and `gameview`. After switching to or from older firmware,
+re-enter Library → Games after the first launch so Q2 Pod rereads the audio mode.
 
 The player saves cart data and closes the sound on its way out.
 
@@ -133,7 +132,7 @@ uses Pocket Boy's itch.io guest-download flow and the root certificates in
 ## Source files
 
 - `src/q2_platform.c`: MIPS32 syscalls, 375×320 rotated framebuffer (2× PICO-8 picture and the native-resolution UI canvas), the input socket and the GPIO key grab.
-- `src/q2_input.c`: the button, wheel and touch mapping, shared by the device and the host simulation.
+- `src/q2_input.c`: the button and touch mapping, shared by the device and the host simulation.
 - `src/library.cpp`, `src/coverflow.cpp`, `src/covers.cpp`, `src/ui.cpp`: the Cover Flow library, its projection, cart artwork and text drawing.
 - `src/getgames.cpp`, `src/itch.c`, `src/itch-helper/`: Get Games, the helper process runner and the Go helper (`go test -mod=vendor` in that folder).
 - `tests/audio.p8`: Original CC0 test cartridge that plays a sustained sine sfx; the native smoke test runs it to verify the synth produces non-silent audio. `tests/demo.p8` is the earlier silent frame-only cart.
@@ -142,9 +141,9 @@ uses Pocket Boy's itch.io guest-download flow and the root certificates in
 
 The port is inspired by FAKE-08's SDL1/FunKey S host but **does not use SDL**.
 
-- `src/fake08_host.cpp`: implements the upstream `Host` interface, wheel/Center/Back input translation, 2× framebuffer drawing, cartridge enumeration, frame timing and lifecycle, and the per-frame audio fill (see "Audio").
+- `src/fake08_host.cpp`: implements the upstream `Host` interface, Q2 input translation and in-game menu, 2× framebuffer drawing, cartridge enumeration, frame timing and lifecycle, and the per-frame audio fill (see "Audio").
 - `src/q2_platform.c`: ALSA audio for the glibc build, resolved at runtime with `dlopen("libasound.so.2")` (same pattern as q2-atari2600); the freestanding browser build has no audio device and its stubs are no-ops.
-- `src/fake08_main.cpp`: runs the library, opens the real FAKE-08 `Vm` for the chosen cart, runs the VM loop and returns to the library when the pause menu's "exit to library" loads FAKE-08's own menu cart.
+- `src/fake08_main.cpp`: runs the library, opens the real FAKE-08 `Vm` for the chosen cart, runs the VM loop and returns to the library when requested from the game menu.
 - `tools/fake08-overlay.sh`: compiles a copy of upstream `vm.cpp` whose pause menu says "exit to library" and "exit to q2 pod". The upstream checkout is not modified.
 - `src/q2_platform.c`: renders normal 16-color and FAKE-08's alternate 128–143 colors using the per-frame screen palette map.
 - `.github/workflows/fake08-port.yml`: builds and tests the freestanding browser, links the real FAKE-08 engine, runs host gameplay/audio regression tests, cross-compiles the device ZIP, and publishes version-tagged releases. The FAKE-08 upstream source is pinned to `814991a2571ad3970e386cef48f3b148aa1c27b9`.
@@ -232,14 +231,11 @@ with a host simulation of the framebuffer, a scripted input socket (raw Q2
 key codes, wheel travel and touch), a WAV audio sink and a fake SD card
 (see `tests/host_q2_sim/README.md`). CI runs it on every push. It checks:
 
-- Library: carts listed, the wheel, Previous and a tap on a side cover
-  move the selection, the menu opens, Return leaves.
-- Library → cart → pause menu "exit to library" → back in the library.
+- Library: button navigation and side-cover taps move the selection.
+- Library → cart → Menu → ROM Library → back in the library.
 - Get Games with a stand-in helper: list, download, the cart appears.
-- Controls (`tests/host_q2_sim/check.py`): Previous/Next/Return/Play held
-  move the test cart's circle Left/Right/Up/Down, Centre is O, the
-  on-screen X recentres it, the wheel holds Right, and Return + Centre
-  held ends the app; in the fallback layout Play is X and Back twice exits.
+- Controls: the four directions, Centre as X, touch O and X, ignored wheel
+  events, and the Return + Centre exit shortcut.
 - A `.p8.png` cart in the layout the helper writes for web exports runs.
 - Pacing (~16.2 ms ticks; 30 and 60 FPS carts) and audio (non-silent,
   262 Hz, 367/368 frames per tick).

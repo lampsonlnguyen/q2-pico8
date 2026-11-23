@@ -70,12 +70,13 @@ def main():
         expect(y3 < y0 - 8, f"Return held moves Up ({y0:.0f} -> {y3:.0f})")
         _, y4, c4 = circle(d, 3150)
         expect(y4 > y3 + 8, f"Play/Pause held moves Down ({y3:.0f} -> {y4:.0f})")
-        _, _, c5 = circle(d, 3550)
-        expect(c5 != c4, f"Centre is O: colour {c4} -> {c5}")
-        x6, y6, _ = circle(d, 4050)
-        expect(abs(x6 - 64) < 3 and abs(y6 - 64) < 3, f"on-screen X recentres ({x6:.0f},{y6:.0f})")
+        x5, y5, c5 = circle(d, 3550)
+        expect(abs(x5 - 64) < 3 and abs(y5 - 64) < 3 and c5 == c4,
+               f"Centre is X: recentres the circle ({x5:.0f},{y5:.0f})")
+        x6, _, c6 = circle(d, 4050)
+        expect(c6 != c5, f"touch O changes colour ({c5} -> {c6})")
         x7, _, _ = circle(d, 4700)
-        expect(x7 > x6 + 6, f"clockwise wheel holds Right ({x6:.0f} -> {x7:.0f})")
+        expect(abs(x7 - x6) < 1, f"wheel leaves position unchanged ({x6:.0f} -> {x7:.0f})")
         expect(stats["exit_reason"] == "return-centre",
                f"Return + Centre held ends the app (exit: {stats['exit_reason']})")
     elif mode == "fallback":
@@ -83,26 +84,23 @@ def main():
         x1, _, _ = circle(d, 1150)
         expect(x1 < x0 - 10, f"Previous held moves Left ({x0:.0f} -> {x1:.0f})")
         x2, y2, _ = circle(d, 1700)
-        expect(abs(x2 - 64) < 3 and abs(y2 - 64) < 3, f"Play is X: recentres ({x2:.0f},{y2:.0f})")
+        expect(abs(x2 - 64) < 3 and abs(y2 - 64) < 3, f"Centre is X: recentres ({x2:.0f},{y2:.0f})")
         expect(stats["exit_reason"] == "double-back",
                f"Back twice ends the app (exit: {stats['exit_reason']})")
     elif mode == "overlay":
         x0, y0, _ = circle(d, 450)
         x1, y1, _ = circle(d, 1150)
-        expect(x1 < x0 - 10 and abs(y1 - y0) < 2, f"D-pad left arm moves Left ({x0:.0f} -> {x1:.0f})")
-        x2, y2, _ = circle(d, 1950)
-        expect(x2 > x1 + 10 and y2 < y1 - 10,
-               f"D-pad up-right corner moves diagonally (({x1:.0f},{y1:.0f}) -> ({x2:.0f},{y2:.0f}))")
-        shown = pixel(d, 1950, 17, 229)
-        hidden = pixel(d, 2300, 17, 229)
-        expect(sum(shown) > 60 and sum(hidden) < 10, f"toggle hides the D-pad ({shown} -> {hidden})")
-        expect(sum(pixel(d, 2300, 350, 17)) > 20, "pause stays visible while hidden")
-        x3, y3, _ = circle(d, 2350)
-        x4, y4, _ = circle(d, 3350)
-        expect(abs(x4 - x3) < 1 and abs(y4 - y3) < 1,
-               f"hidden X and D-pad ignore touches (({x3:.0f},{y3:.0f}) -> ({x4:.0f},{y4:.0f}))")
+        expect(abs(x1 - x0) < 1 and abs(y1 - y0) < 1, "left-side touch does not move the circle")
+        shown = pixel(d, 1950, 350, 207)
+        hidden = pixel(d, 2300, 350, 207)
+        expect(sum(shown) > 100 and sum(hidden) < 20, "toggle hides X")
+        expect(sum(pixel(d, 2300, 350, 17)) > 20, "Menu remains visible")
+        x3, y3, c3 = circle(d, 2350)
+        x4, y4, c4 = circle(d, 3350)
+        expect(abs(x4 - x3) < 1 and abs(y4 - y3) < 1 and c4 == c3,
+               "hidden X and O ignore touches")
         x5, y5, _ = circle(d, 4100)
-        expect(sum(pixel(d, 4100, 17, 229)) > 60, "toggle shows the D-pad again")
+        expect(sum(pixel(d, 4100, 350, 207)) > 100, "toggle shows X again")
         expect(abs(x5 - 64) < 3 and abs(y5 - 64) < 3, f"shown X recentres ({x5:.0f},{y5:.0f})")
     else:
         raise SystemExit(__doc__)

@@ -1,6 +1,6 @@
 # tests/input.p8 with all five buttons (Pocket Boy layout); ms since q2_open.
-# Previous/Next/Return/Play held = Left/Right/Up/Down, Centre = O,
-# on-screen X recentres, the wheel holds Right while it turns clockwise,
+# Previous/Next/Return/Play held = Left/Right/Up/Down, Centre = X,
+# touch O changes colour, the wheel is ignored,
 # and Return + Centre held 1.2 s ends the app.
 500 key PREV down
 1100 key PREV up
@@ -11,8 +11,8 @@
 2700 key PLAY down
 3100 key PLAY up
 3300 key CENTRE press
-3800 touch 350 207 down
-3900 touch 350 207 up
+3800 touch 309 245 down
+3900 touch 309 245 up
 4200 wheel 30
 4300 wheel 30
 4400 wheel 30

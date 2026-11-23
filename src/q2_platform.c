@@ -245,9 +245,12 @@ void q2_audio_write(const int16_t *samples, unsigned frames) {
 typedef void (*q2_sighandler)(int);
 extern q2_sighandler signal(int, q2_sighandler);
 static void on_term(int sig) { (void)sig; term_requested = 1; }
+void q2_set_audio_route(const char *device, const char *volume) {
+    arg_device = device;
+    arg_volume = volume;
+}
 void q2_set_args(int argc, char **argv) {
-    arg_device = argc > 1 ? argv[1] : 0;
-    arg_volume = argc > 2 ? argv[2] : 0;
+    q2_set_audio_route(argc > 1 ? argv[1] : 0, argc > 2 ? argv[2] : 0);
     signal(15 /* SIGTERM */, on_term);
     signal(2 /* SIGINT */, on_term);
 }
@@ -406,11 +409,7 @@ q2_input q2_read_input(void) {
 #endif
     while(sock>=0&&(n=sc(SYS_RECV,sock,(long)m,sizeof m-1,MSG_DONTWAIT,0,0))>0) {
         m[n]=0;
-        if(m[0]=='w'&&m[1]==' ') {
-            /* Q2 Pod's travel rises anticlockwise (200 a turn); turned here so
-             * clockwise, the Q2's "down/next", is positive and Right. */
-            q2_input_wheel(-number(m+2),now);
-        } else if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
+        if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
 #ifdef Q2_GLIBC
             if(keys>=0)continue; /* grabbed: the GPIO device is the source */
 #endif
@@ -477,6 +476,10 @@ static void present_mapped(const uint8_t *pixels,const uint8_t *map,
         if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0))visible=page;
         else {can_pan=0;copy_page(memory+visible*stride,dest);}
     }
+}
+void q2_resume_display(void) {
+    if(fb>=0&&!sc(SYS_IOCTL,fb,FB_VSCREEN,(long)var,0,0,0))visible=var[5];
+    q2_input_set_game(0);
 }
 static void flip(unsigned page,q2_pixel *dest) {
     if(can_pan){

@@ -445,7 +445,7 @@ q2_input q2_read_input(void) {
         sim_event ev = events[event_next++];
         ++input_events_applied;
         switch (ev.kind & 0xff) {
-        case EV_WHEEL: q2_input_wheel(ev.a, now); break;
+        case EV_WHEEL: break; /* Device ignores wheel datagrams. */
         case EV_KEY_DOWN: q2_input_key(ev.a, 1, now); break;
         case EV_KEY_UP: q2_input_key(ev.a, 0, now); break;
         case EV_TOUCH: q2_input_touch((char)(ev.kind >> 8), ev.a, ev.b, now); break;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Cover Flow cart library, after Pocket Boy's ROM shelf
  * (github.com/SlayTheEarth/q2-boy):
- *   wheel / Previous / Next / swipe   browse
+ *   Previous / Next / swipe   browse
  *   Centre or tap the centre cover    play
  *   tap a side cover                  select it
  *   Play/Pause or tap the dots        menu (Get Games, sort, refresh, exit)
@@ -24,7 +24,7 @@
 #include "ui.h"
 
 namespace {
-enum { FRAME_MS = 33, HEADER = 44, TITLE_Y = 234, SUB_Y = 266, HINT_Y = 296, TICK = 38,
+enum { FRAME_MS = 33, HEADER = 44, TITLE_Y = 234, SUB_Y = 266, HINT_Y = 296,
        MENU_W = 260, MENU_ROW = 44 };
 enum Sort { SORT_TITLE, SORT_RECENT };
 const char *const sort_names[] = {"Title (A-Z)", "Recently played"};
@@ -233,8 +233,8 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
     if (!message.empty()) notify(message);
     LibraryChoice choice;
     bool menu = false, dragging = false, dirty = true;
-    int focus = 0, wheel_acc = 0, drag_x = 0;
-    unsigned wheel_at = 0, last_scan = q2_millis();
+    int focus = 0, drag_x = 0;
+    unsigned last_scan = q2_millis();
     float drag_flow = 0;
     title_since = q2_millis();
     q2_set_game_mode(0);
@@ -242,10 +242,8 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
         unsigned now = q2_millis();
         q2_input in = q2_read_input();
         if (in.quit) { choice.exit = true; break; }
-        int steps = app::wheel_steps(wheel_acc, wheel_at, in.wheel, now, TICK);
         if (menu) {
             if (in.pressed & (Q2_PAUSE | Q2_X)) menu = false;
-            focus = (focus + steps + M_COUNT * 8) % M_COUNT;
             if (in.pressed & Q2_LEFT) focus = (focus + M_COUNT - 1) % M_COUNT;
             if (in.pressed & Q2_RIGHT) focus = (focus + 1) % M_COUNT;
             int tapped = in.touch_ended ? menu_at(in.touch_x, in.touch_y) : -2;
@@ -259,7 +257,6 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
                 continue;
             }
         } else {
-            if (steps) select(selected + steps);
             if (in.pressed & Q2_LEFT) select(selected - 1);
             if (in.pressed & Q2_RIGHT) select(selected + 1);
             if (in.pressed & Q2_X) { menu = true; focus = 0; }
@@ -303,7 +300,7 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
             moving = fabsf(d) >= 0.01f;
             flow = moving ? flow + d * 0.38f : (float)selected;
         }
-        bool input = in.pressed || in.wheel || in.touch || in.touch_began || in.touch_ended;
+        bool input = in.pressed || in.touch || in.touch_began || in.touch_ended;
         bool scrolling_title = !carts.empty() &&
             ui::text_width(carts[selected].title, ui::LARGE) > ui::W - 36;
         bool toasting = toast_until && (int)(now - toast_until) < 200;

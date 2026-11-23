@@ -5,13 +5,13 @@
  * as Pocket Boy does on older firmware) the layout follows Pocket Boy
  * (github.com/SlayTheEarth/q2-boy):
  *   in a cart:  Return Up, Play/Pause Down, Previous Left, Next Right,
- *               Centre O; the wheel holds Left/Right while it turns.
+ *               Centre X, touch O and X.
  *   in menus:   Return Back, Play/Pause X (actions), Previous/Next
- *               Left/Right, Centre O (select); the wheel scrolls.
+ *               Left/Right, Centre O (select).
  *   anywhere:   Return + Centre held 1.2 s ends the app.
  * Without them (Q2 Pod 1.8.x firmware that keeps Return for itself and
  * could not be grabbed) the earlier fallback applies: Back (Return
- * released) pauses, Back twice within 500 ms ends the app, Play is X.
+ * released) opens the menu; Back twice within 500 ms ends the app.
  */
 #include "q2_input.h"
 
@@ -19,7 +19,7 @@ enum { ID_RETURN, ID_PLAY, ID_PREVIOUS, ID_NEXT, ID_CENTRE };
 
 /* Layout in the 375x320 view; the 2x game picture is 256x256 at (59, 32),
  * leaving 59 px at each side, so the pads overlap its edges translucently. */
-enum { DPAD, ROUND, PILL };
+enum { ROUND, PILL };
 enum { Q2_TOGGLE = 1u << 16 }; /* internal: show/hide the overlay */
 typedef struct {
     int x, y, w, h;
@@ -28,35 +28,25 @@ typedef struct {
     unsigned char glyph[7];
 } control;
 static const control controls[] = {
-    {4,   190, 78, 78, 0,        DPAD,  0, {0}},
     {292, 228, 34, 34, Q2_O,     ROUND, 0, {0,28,34,34,34,28,0}},
     {333, 190, 34, 34, Q2_X,     ROUND, 0, {0,34,20,8,20,34,0}},
-    {331, 6,   38, 22, Q2_PAUSE, PILL,  1, {0,62,0,62,0,62,0}},  /* PICO-8 pause menu */
+    {331, 6,   38, 22, Q2_PAUSE, PILL,  1, {0,62,0,62,0,62,0}},  /* Q2 game menu */
     {6,   6,   38, 22, Q2_TOGGLE,PILL,  1, {0,0,0,0,0,0,0}},     /* show/hide; glyph drawn */
 };
 enum { CONTROL_COUNT = sizeof controls / sizeof controls[0] };
-static const unsigned char arrows[4][7] = {
-    {8,28,62,8,8,8,8},     /* up */
-    {0,8,16,62,16,8,0},    /* left */
-    {0,8,4,62,4,8,0},      /* right */
-    {8,8,8,8,62,28,8},     /* down */
-};
 static unsigned overlay_shown = 1, overlay_changed;
 
 static unsigned full, game, physical, touch_key, raw_keys;
 static unsigned combo_at, back_at, back_pending;
-static unsigned wheel_bit, wheel_until;
 static q2_input out;
 
 static void clear_edges(void) {
     out.pressed = 0;
-    out.wheel = 0;
     out.touch_began = 0;
     out.touch_ended = 0;
 }
 void q2_input_reset(void) {
     physical = touch_key = raw_keys = combo_at = back_at = back_pending = 0;
-    wheel_bit = wheel_until = 0;
     out.buttons = 0; out.quit = 0;
     out.touch = out.touch_x = out.touch_y = 0;
     out.touch_start_x = out.touch_start_y = 0;
@@ -66,7 +56,7 @@ void q2_input_set_full(int on) { full = on != 0; }
 int q2_input_full(void) { return (int)full; }
 void q2_input_set_game(int on) {
     game = on != 0;
-    physical = touch_key = raw_keys = combo_at = back_pending = wheel_bit = 0;
+    physical = touch_key = raw_keys = combo_at = 0;
     out.buttons = 0;
     out.touch = 0;
     clear_edges();
@@ -96,14 +86,8 @@ void q2_input_key(int code, int down, unsigned now) {
     if (down) raw_keys |= 1u << id; else raw_keys &= ~(1u << id);
     const unsigned combo = (1u << ID_RETURN) | (1u << ID_CENTRE);
     if ((raw_keys & combo) != combo) combo_at = 0;
-    else if (!combo_at) combo_at = now | 1u;
-    if (full) {
-        static const unsigned in_game[] = {Q2_UP, Q2_DOWN, Q2_LEFT, Q2_RIGHT, Q2_O};
-        static const unsigned in_menu[] = {Q2_PAUSE, Q2_X, Q2_LEFT, Q2_RIGHT, Q2_O};
-        hold(game ? in_game[id] : in_menu[id], down);
-        return;
-    }
-    if (id == ID_RETURN) {
+    else if (!combo_at) combo_at = now ? now : 1u;
+    if (!full && id == ID_RETURN) {
         /* Q2 Pod 1.8.x sends Return only as it is released. */
         if (down) return;
         if (back_pending && now - back_at <= 500u) out.quit = 1;
@@ -112,39 +96,11 @@ void q2_input_key(int code, int down, unsigned now) {
         back_at = now;
         return;
     }
-    static const unsigned fallback[] = {Q2_PAUSE, Q2_X, Q2_LEFT, Q2_RIGHT, Q2_O};
-    hold(fallback[id], down);
+    static const unsigned in_game[] = {Q2_UP, Q2_DOWN, Q2_LEFT, Q2_RIGHT, Q2_X};
+    static const unsigned in_menu[] = {Q2_PAUSE, Q2_X, Q2_LEFT, Q2_RIGHT, Q2_O};
+    hold(game ? in_game[id] : in_menu[id], down);
 }
 
-void q2_input_wheel(int travel, unsigned now) {
-    if (!travel) return;
-    out.wheel += travel;
-    unsigned bit = travel > 0 ? Q2_RIGHT : Q2_LEFT;
-    if (game) {
-        /* In a cart the wheel steers: Left or Right stays held while it
-         * turns (and ~120 ms after), so btn() sees a held direction
-         * instead of one-frame taps; btnp() gets the first edge. */
-        if (wheel_bit != bit || (int)(now - wheel_until) > 0) out.pressed |= bit;
-        wheel_bit = bit;
-        unsigned size = (unsigned)(travel < 0 ? -travel : travel);
-        unsigned span = 120u + size * 4u;
-        wheel_until = now + (span > 300u ? 300u : span);
-        return;
-    }
-    /* Menus (the library, Get Games) read the travel itself, so a turn is
-     * not also reported as Left/Right presses. */
-}
-
-/* The D-pad is a 3x3 grid: arms give one direction, corners two. */
-static unsigned dpad_keys(const control *c, int x, int y) {
-    int col = (x - c->x) * 3 / c->w, row = (y - c->y) * 3 / c->h;
-    unsigned keys = 0;
-    if (col == 0) keys |= Q2_LEFT;
-    if (col == 2) keys |= Q2_RIGHT;
-    if (row == 0) keys |= Q2_UP;
-    if (row == 2) keys |= Q2_DOWN;
-    return keys;
-}
 static int inside(const control *c, int x, int y) {
     if (x < c->x || y < c->y || x >= c->x + c->w || y >= c->y + c->h) return 0;
     if (c->kind == ROUND) {
@@ -158,11 +114,12 @@ static unsigned control_hit(int x, int y) {
     for (unsigned i = 0; i < CONTROL_COUNT; ++i) {
         const control *c = &controls[i];
         if ((!overlay_shown && !c->always) || !inside(c, x, y)) continue;
-        return c->kind == DPAD ? dpad_keys(c, x, y) : c->key;
+        return c->key;
     }
     return 0;
 }
 
+void q2_overlay_mark_changed(void) { overlay_changed = 1; }
 void q2_overlay_set_visible(int on) { overlay_shown = on != 0; }
 int q2_overlay_visible(void) { return (int)overlay_shown; }
 int q2_overlay_take_changed(void) {
@@ -194,22 +151,20 @@ void q2_input_touch(char action, int x, int y, unsigned now) {
         /* Toggles on the touch that lands on it, never by sliding over it. */
         if (action == 'd') {
             overlay_shown = !overlay_shown;
-            overlay_changed = 1;
+            q2_overlay_mark_changed();
         }
         touch_key = 0;
         return;
     }
-    /* Sliding onto another control (or D-pad direction) presses it. */
+    /* Sliding onto an action button presses it. */
+    if (key == Q2_PAUSE && action != 'd') key = 0;
     if (key & ~touch_key) out.pressed |= key & ~touch_key;
-    if (action == 'd' || key) touch_key = key;
+    touch_key = key;
 }
 
 q2_input q2_input_take(unsigned now) {
-    unsigned wheel_held = 0;
-    if (wheel_bit && (int)(now - wheel_until) < 0) wheel_held = wheel_bit;
-    else wheel_bit = 0;
-    if (full && combo_at && now - combo_at >= Q2_QUIT_HOLD_MS) out.quit = 1;
-    out.buttons = physical | touch_key | wheel_held;
+    if (full && combo_at && (int)(now - combo_at) >= Q2_QUIT_HOLD_MS) out.quit = 1;
+    out.buttons = physical | touch_key;
     q2_input snapshot = out;
     clear_edges();
     return snapshot;
@@ -234,31 +189,6 @@ void q2_overlay_paint(q2_plot plot, void *ctx) {
         if (!overlay_shown && !c->always) continue;
         /* Shown: pads 60% opaque over the game; hidden: a faint hint. */
         unsigned body = overlay_shown ? 154 : 70, ink = overlay_shown ? 235 : 110;
-        if (c->kind == DPAD) {
-            int cell = c->w / 3;
-            /* The cross: centre plus four arms, each lit while held. */
-            static const int arm[5][2] = {{1,1},{1,0},{0,1},{2,1},{1,2}};
-            static const unsigned arm_key[5] = {0, Q2_UP, Q2_LEFT, Q2_RIGHT, Q2_DOWN};
-            for (int a = 0; a < 5; ++a) {
-                unsigned on = arm_key[a] && (held & arm_key[a]);
-                int ax = c->x + arm[a][0] * cell, ay = c->y + arm[a][1] * cell;
-                for (int y = 0; y < cell; ++y)
-                    for (int x = 0; x < cell; ++x) {
-                        /* A light rim along the cross's outline: an arm's two
-                         * long sides and its outer end; none on the centre. */
-                        int rim = 0, last = cell - 1;
-                        if (arm[a][0] == 1 && arm[a][1] != 1)      /* up or down */
-                            rim = x == 0 || x == last || y == (arm[a][1] ? last : 0);
-                        else if (arm[a][1] == 1 && arm[a][0] != 1) /* left or right */
-                            rim = y == 0 || y == last || x == (arm[a][0] ? last : 0);
-                        plot(ctx, ax + x, ay + y, rim ? EDGE : on ? PAD_ON : PAD,
-                             rim ? body : on ? 220 : body);
-                    }
-                if (a) glyph(plot, ctx, c->x + arm[a][0] * cell + cell / 2,
-                             c->y + arm[a][1] * cell + cell / 2, arrows[a - 1], ink);
-            }
-            continue;
-        }
         unsigned on = c->key != Q2_TOGGLE && (held & c->key);
         for (int y = 0; y < c->h; ++y)
             for (int x = 0; x < c->w; ++x) {

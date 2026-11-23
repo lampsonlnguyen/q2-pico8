@@ -6,5 +6,6 @@ class Vm;
 /* How a cart's GameLoop ended. */
 enum { Q2_END_NONE, Q2_END_LIBRARY, Q2_END_QUIT };
 extern Vm *q2_session_vm;  /* the running cart's VM, or null */
+void q2_configure_audio(int argc);
 extern int q2_session_end;
 #endif

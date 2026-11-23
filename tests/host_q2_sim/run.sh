@@ -65,15 +65,14 @@ if visible < 300:
     sys.exit(1)
 print(f"ok   startup frame visibly painted ({visible} pixels)")
 PY
-need library "library: selected 1 " "wheel did not move the selection"
+need library "library: selected 1 " "Next did not move the selection"
 need library "library: selected 2 demo.p8" "a tap on a side cover did not select it"
 need library "library: exit" "Return did not leave the library"
 
-# --- 2. library -> cart -> pause menu "exit to library" -> leave ---
+# --- 2. library -> cart -> Menu via ROM Library -> leave ---
 run play-return play-return.txt || { echo "FAIL: play-return"; fail=1; }
 need play-return "library: launch input.p8" "Centre did not launch the selected cart"
 need play-return "Start of GameLoop" "the cart did not run"
-need play-return "Loading cart __FAKE08-DEFAULT" "the pause menu exit was not taken"
 [ "$(grep -c 'library: [0-9]* carts' "$OUTBASE/play-return/pico.log")" -ge 2 ] \
     || { echo "FAIL: did not return to the library"; fail=1; }
 need play-return "library: exit" "Return did not leave after the cart"
@@ -96,7 +95,7 @@ need png-cart "Start of GameLoop" "the PNG cart did not reach GameLoop"
 run input-controls controls-full.txt Q2_PICO8_CART=input.p8 || { echo "FAIL: input-controls"; fail=1; }
 python3 "$SIMDIR/check.py" full "$OUTBASE/input-controls" || fail=1
 
-# --- 7b. touch overlay: D-pad cross, diagonals, hide/show ---
+# --- 7b. touch overlay: O/X and hide/show ---
 run input-overlay overlay.txt Q2_PICO8_CART=input.p8 || { echo "FAIL: input-overlay"; fail=1; }
 python3 "$SIMDIR/check.py" overlay "$OUTBASE/input-overlay" || fail=1
 

@@ -18,7 +18,5 @@ bool is_cart(const std::string &file);
 std::vector<std::string> list_carts();
 std::vector<std::string> read_lines(const std::string &path, size_t limit);
 bool write_lines(const std::string &path, const std::vector<std::string> &lines);
-/* Ticks of wheel travel: Pocket Boy's Cover Flow uses 38 of 200 a turn. */
-int wheel_steps(int &accumulator, unsigned &last_ms, int travel, unsigned now, int tick);
 }
 #endif
