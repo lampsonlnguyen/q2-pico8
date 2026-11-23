@@ -1,6 +1,6 @@
 # Changelog
 
-# v0.3.0-alpha
+## v0.3.0-alpha
 
 ### Fixes the cart-load crash in v0.2.0-alpha
 
