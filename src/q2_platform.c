@@ -311,6 +311,14 @@ static int gpio_code(unsigned code) {
 }
 #endif
 
+/* A missing/unsupported framebuffer previously returned no diagnostic and
+ * the launcher could leave a fully black screen. Keep the exact stage in the
+ * SD-card pico.log (stderr is redirected there by Logger_Initialize). */
+#ifdef Q2_GLIBC
+#define Q2_OPEN_ERROR(message) do { q2_log("q2-pico8: " message "\\n"); goto error; } while(0)
+#else
+#define Q2_OPEN_ERROR(message) goto error
+#endif
 int q2_open(void) {
     q2_input_reset();
 #ifdef Q2_GLIBC
@@ -329,26 +337,31 @@ int q2_open(void) {
     }
 #endif
     fb=(int)sc(SYS_OPEN,(long)"/dev/fb0",O_RDWR|O_CLOEXEC,0,0,0,0);
-    if(fb<0) return -1;
+    if(fb<0) Q2_OPEN_ERROR("cannot open /dev/fb0");
     if(sc(SYS_IOCTL,fb,FB_VSCREEN,(long)var,0,0,0) ||
-       sc(SYS_IOCTL,fb,FB_FSCREEN,(long)fix,0,0,0)) goto error;
+       sc(SYS_IOCTL,fb,FB_FSCREEN,(long)fix,0,0,0))
+        Q2_OPEN_ERROR("framebuffer ioctl failed");
     if(var[0]!=Q2_HEIGHT||var[1]!=Q2_WIDTH||var[4]||var[6]!=32||
-       var[8]!=16||fix[11]%sizeof(q2_pixel)) goto error;
+       var[8]!=16||fix[11]%sizeof(q2_pixel))
+        Q2_OPEN_ERROR("unsupported framebuffer geometry or pixel format");
     stride=fix[11]/sizeof(q2_pixel);
-    if(stride<Q2_HEIGHT) goto error;
+    if(stride<Q2_HEIGHT) Q2_OPEN_ERROR("framebuffer stride too short");
     rows=fix[5]/fix[11];
     if(rows>var[3]) rows=var[3];
     front=var[5];visible=front;
-    if(rows<Q2_WIDTH||front>rows-Q2_WIDTH) goto error;
+    if(rows<Q2_WIDTH||front>rows-Q2_WIDTH)
+        Q2_OPEN_ERROR("framebuffer page not addressable");
     long address=sc(SYS_MMAP,0,(long)fix[5],3,1,fb,0);
-    if(address<0&&address>=-4095) goto error;
+    if(address<0&&address>=-4095)
+        Q2_OPEN_ERROR("framebuffer mmap failed");
     memory=(q2_pixel*)address;
     can_pan=rows>=2*Q2_WIDTH&&(front==0||front==Q2_WIDTH);
     sock=(int)sc(SYS_SOCKET,1,1,0,0,0,0);
-    if(sock<0) goto error;
+    if(sock<0) Q2_OPEN_ERROR("input socket creation failed");
     struct {unsigned short family;char path[108];}addr={1,SOCKET_PATH};
     sc(SYS_UNLINK,(long)SOCKET_PATH,0,0,0,0,0);
-    if(sc(SYS_BIND,sock,(long)&addr,sizeof addr,0,0,0)) goto error;
+    if(sc(SYS_BIND,sock,(long)&addr,sizeof addr,0,0,0))
+        Q2_OPEN_ERROR("input socket bind failed");
 #ifdef Q2_GLIBC
     if(!gameview&&keys<0)grab_buttons();
     q2_input_set_full(gameview||keys>=0);
@@ -361,6 +374,7 @@ error:
     q2_close();
     return -1;
 }
+#undef Q2_OPEN_ERROR
 
 static int number(const char *str) {
     int value=0,neg=0;
