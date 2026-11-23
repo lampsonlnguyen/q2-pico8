@@ -20,7 +20,7 @@ are Q2-specific integrations.
 | **Q2 platform and library** | MIPS display, input, Cover Flow and audio |
 | **Femto-8** | Historical proof-of-concept, removed; **not** the playable engine |
 
-There is one build, `q2-pico8-playable-experimental.zip`, which uses
+There is one build, `q2-pico8.zip`, which uses
 **FAKE-08**. The old cart-list-only browser preview
 (`q2-femto8-browser-preview.zip`) was removed in v0.4.2-alpha; if a copy
 of it ever replaced `.pico8/q2-pico8` on your card, reinstall the
@@ -28,11 +28,12 @@ playable ZIP.
 
 ## Install
 
-1. Download **only** `q2-pico8-playable-experimental.zip` from the
+1. Download **only** `q2-pico8.zip` from the
    [latest release](https://github.com/lampsonlnguyen/q2-pico8/releases/latest).
+   Older releases use the filename `q2-pico8-playable-experimental.zip`.
    v0.4.0-alpha and v0.4.1-alpha do not start on the Q2 (see the
    CHANGELOG); use v0.4.2-alpha or later. Builds from unreleased commits are the
-   **q2-pico8-playable-experimental.zip** download in the Artifacts section of a successful
+   **q2-pico8.zip** download in the Artifacts section of a successful
    [Q2 PICO-8 bridge run](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml).
 2. Extract the ZIP to the root of the microSD card. When upgrading, replace
    everything in `.pico8` except your `carts`, `covers` and `cdata` folders.
@@ -154,8 +155,8 @@ The [Q2 PICO-8 bridge workflow](https://github.com/lampsonlnguyen/q2-pico8/actio
 
 - Vets and tests the Get Games helper and syntax-checks the MIPS platform layer.
 - Links the real FAKE-08 VM and runs the host Q2 simulation: cartridge loading, controls, rendering/frame pacing, and audio. A `q2-pico8-host-simulation-report` artifact contains the test report and summary.
-- Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8-playable-experimental.zip` directly as an Actions artifact.
-- **Only after both test/build jobs succeed for a new version on `main` (or an explicit version tag)**, creates a GitHub Release with **only** `q2-pico8-playable-experimental.zip`. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
+- Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8.zip` directly as an Actions artifact.
+- **Only after both test/build jobs succeed for a new version on `main` (or an explicit version tag)**, creates a GitHub Release with **only** `q2-pico8.zip`. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
 
 To publish a **new tested alpha version**, update the `VERSION` file
 (e.g. `0.4.1-alpha`) and merge into `main`. GitHub Actions runs both
@@ -179,7 +180,7 @@ real Q2. A release fails closed if the gameplay tests or device build fail.
 
 The playable cross-build script compiles FAKE-08's interpreter and Lua
 runtime, the Q2 host and the cartridge picker. The CI `device` job runs
-this script and publishes `q2-pico8-playable-experimental.zip` as a direct download;
+this script and publishes `q2-pico8.zip` as a direct download;
 `make player` runs it too.
 
 ```sh
@@ -190,7 +191,7 @@ Q2_SYSROOT="$HOME/.cache/q2/sysroot" \
 bash tools/build-fake08.sh
 ```
 
-The experimental build produces `dist/q2-pico8-playable-experimental.zip`
+The experimental build produces `dist/q2-pico8.zip`
 and stages its executable at `dist/player/.pico8/q2-pico8`. You can reuse the
 sysroot from q2-nes by exporting the same `SYSROOT` value. `Q2_SYSROOT`
 takes precedence when both are set. A successful build alone does not certify

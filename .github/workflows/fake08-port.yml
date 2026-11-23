@@ -168,17 +168,17 @@ jobs:
           test "$(wc -l < /tmp/qr.txt)" -ge 21
       - name: Verify playable install ZIP
         run: |
-          unzip -t dist/q2-pico8-playable-experimental.zip
-          unzip -p dist/q2-pico8-playable-experimental.zip .pico8/q2app | grep -Fx 'name=PICO-8'
-          unzip -p dist/q2-pico8-playable-experimental.zip .pico8/q2-pico8 | cmp - dist/player/.pico8/q2-pico8
+          unzip -t dist/q2-pico8.zip
+          unzip -p dist/q2-pico8.zip .pico8/q2app | grep -Fx 'name=PICO-8'
+          unzip -p dist/q2-pico8.zip .pico8/q2-pico8 | cmp - dist/player/.pico8/q2-pico8
           for member in .pico8/q2-pico8-itch .pico8/itch-ca.pem .pico8/licenses/NOTICE.md \
                         .pico8/licenses/Liberation-Sans-OFL.txt .pico8/licenses/Go.txt; do
-            unzip -Z1 dist/q2-pico8-playable-experimental.zip | grep -Fx "$member"
+            unzip -Z1 dist/q2-pico8.zip | grep -Fx "$member"
           done
       - name: Upload playable install ZIP directly
         uses: actions/upload-artifact@v7
         with:
-          path: dist/q2-pico8-playable-experimental.zip
+          path: dist/q2-pico8.zip
           archive: false
           if-no-files-found: error
   release:
@@ -224,7 +224,7 @@ jobs:
         if: steps.version.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: q2-pico8-playable-experimental.zip
+          name: q2-pico8.zip
           path: dist
           skip-decompress: true
       - name: Create or update GitHub Release
@@ -234,7 +234,7 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          assets=(dist/q2-pico8-playable-experimental.zip)
+          assets=(dist/q2-pico8.zip)
           for asset in "${assets[@]}"; do
             unzip -tq "$asset"
             unzip -p "$asset" .pico8/q2app | grep -Fx 'name=PICO-8'

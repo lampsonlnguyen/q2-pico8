@@ -3,7 +3,7 @@
 # toolchain and Q2 sysroot described in README.md.
 FAKE08_SRC ?= ../fake-08
 
-# dist/q2-pico8-playable-experimental.zip, the SD-card install
+# dist/q2-pico8.zip, the SD-card install
 player:
 	FAKE08_SRC=$(FAKE08_SRC) bash tools/build-fake08.sh
 

@@ -145,7 +145,7 @@ else
 fi
 (
     cd "$stage"
-    rm -f ../q2-pico8-playable-experimental.zip
-    zip -q -FS ../q2-pico8-playable-experimental.zip "${members[@]}"
+    rm -f ../q2-pico8.zip
+    zip -q -FS ../q2-pico8.zip "${members[@]}"
 )
-echo "Created dist/q2-pico8-playable-experimental.zip"
+echo "Created dist/q2-pico8.zip"
