@@ -296,6 +296,16 @@ static int write_png(const char *path) {
 }
 
 static void log_frame(uint64_t h);
+/* Same blend as src/q2_platform.c's plot_overlay (stride = Q2_HEIGHT here). */
+static void plot_overlay(void *ctx, int x, int y, uint32_t rgb, unsigned alpha) {
+    if ((unsigned)x >= Q2_WIDTH || (unsigned)y >= Q2_HEIGHT) return;
+    q2_pixel *p = (q2_pixel *)ctx + x * Q2_HEIGHT + (Q2_HEIGHT - 1 - y);
+    uint32_t under = *p;
+    if (alpha > 256) alpha = 256;
+    uint32_t rb = ((rgb & 0xff00ffu) * alpha + (under & 0xff00ffu) * (256 - alpha)) >> 8;
+    uint32_t g = ((rgb & 0x00ff00u) * alpha + (under & 0x00ff00u) * (256 - alpha)) >> 8;
+    *p = 0xff000000u | (rb & 0xff00ffu) | (g & 0x00ff00u);
+}
 static void present_mapped(const uint8_t *pixels, const uint8_t *map, const uint32_t *palette) {
     if (!fb_mem || !pixels || !palette) return;
     for (unsigned x = 0; x < Q2_WIDTH; ++x) {
@@ -315,22 +325,7 @@ static void present_mapped(const uint8_t *pixels, const uint8_t *map, const uint
             col[Q2_HEIGHT - 1 - y] = argb;
         }
     }
-    if (map) {
-        unsigned held = q2_input_held();
-        for (unsigned i = 0; i < q2_control_count(); ++i) {
-            const q2_control *c = q2_control_at(i);
-            unsigned active = held & c->key;
-            for (int x = 0; x < Q2_CONTROL_SIZE; ++x) {
-                q2_pixel *col = fb_mem + (c->x + x) * Q2_HEIGHT;
-                for (int y = 0; y < Q2_CONTROL_SIZE; ++y) {
-                    unsigned ink = x >= 9 && x < 23 && y >= 9 && y < 23 &&
-                        (c->glyph[(y - 9) / 2] & (1u << (6 - (x - 9) / 2)));
-                    col[Q2_HEIGHT - 1 - c->y - y] = ink ? 0xffeeeeeeu :
-                        active ? 0xff326977u : 0xff263247u;
-                }
-            }
-        }
-    }
+    if (map) q2_overlay_paint(plot_overlay, fb_mem);
     uint64_t h = 1469598103934665603ULL;
     h = fnv1a(pixels, 8192, h);
     if (map) h = fnv1a(map, 16, h);

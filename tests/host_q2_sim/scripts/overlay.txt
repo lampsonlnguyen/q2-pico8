@@ -1,0 +1,20 @@
+# tests/input.p8 with the handheld overlay: D-pad cross at (4,190) 78x78,
+# O at (292,228), X at (333,190), pause top right, show/hide top left.
+# Left arm held, then the up-right corner (a diagonal).
+500 touch 17 229 down
+1100 touch 17 229 up
+1300 touch 69 203 down
+1900 touch 69 203 up
+# Hide: X and the D-pad no longer respond.
+2100 touch 25 17 down
+2150 touch 25 17 up
+2400 touch 350 207 down
+2500 touch 350 207 up
+2700 touch 17 229 down
+3300 touch 17 229 up
+# Show again: X recentres the circle.
+3500 touch 25 17 down
+3550 touch 25 17 up
+3800 touch 350 207 down
+3900 touch 350 207 up
+4600 quit

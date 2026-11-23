@@ -38,11 +38,18 @@ q2_input q2_input_take(unsigned now);
 /* Logical buttons currently held (for drawing the touch overlay). */
 unsigned q2_input_held(void);
 
-/* On-screen gameplay controls (drawn by the platform's present path). */
-enum { Q2_CONTROL_SIZE=32 };
-typedef struct { int x, y; unsigned key; unsigned char glyph[7]; } q2_control;
-unsigned q2_control_count(void);
-const q2_control *q2_control_at(unsigned index);
+/* On-screen gameplay controls, laid out like a handheld: a D-pad cross on
+ * the left, O and X on the right (O lower, as on PICO-8's own layout), the
+ * pause menu and a show/hide toggle in the top corners. Hidden, only the
+ * pause and toggle buttons remain (faintly) and the rest ignore touches. */
+void q2_overlay_set_visible(int visible);
+int q2_overlay_visible(void);
+/* Set when the user toggles the overlay in a cart (to save the choice). */
+int q2_overlay_take_changed(void);
+/* Paints the overlay: plot(ctx, x, y, rgb, alpha 0..256) for each pixel
+ * to blend over the game picture, in 375x320 view coordinates. */
+typedef void (*q2_plot)(void *ctx, int x, int y, uint32_t rgb, unsigned alpha);
+void q2_overlay_paint(q2_plot plot, void *ctx);
 
 #ifdef __cplusplus
 }

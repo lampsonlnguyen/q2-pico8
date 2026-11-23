@@ -96,6 +96,10 @@ need png-cart "Start of GameLoop" "the PNG cart did not reach GameLoop"
 run input-controls controls-full.txt Q2_PICO8_CART=input.p8 || { echo "FAIL: input-controls"; fail=1; }
 python3 "$SIMDIR/check.py" full "$OUTBASE/input-controls" || fail=1
 
+# --- 7b. touch overlay: D-pad cross, diagonals, hide/show ---
+run input-overlay overlay.txt Q2_PICO8_CART=input.p8 || { echo "FAIL: input-overlay"; fail=1; }
+python3 "$SIMDIR/check.py" overlay "$OUTBASE/input-overlay" || fail=1
+
 # --- 8. controls: Q2 Pod 1.8 fallback, Back twice ends the app ---
 run input-fallback controls-fallback.txt Q2_PICO8_CART=input.p8 Q2_SIM_FULL=0 \
     || { echo "FAIL: input-fallback"; fail=1; }

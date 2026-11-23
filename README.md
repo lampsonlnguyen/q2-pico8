@@ -102,9 +102,20 @@ The layout is Pocket Boy's:
 | Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
 | Centre | O |
 | Wheel | Left or Right, held while it turns (clockwise is Right) |
-| On-screen arrows, **O**, **X** | held input |
-| On-screen **≡** | pause menu: Continue, Reset cart, **Exit to library**, **Exit to Q2 Pod** |
+| On-screen D-pad (left) | held directions; its corners press two (diagonals) |
+| On-screen **O** and **X** (right, O lower) | held buttons |
+| On-screen **≡** (top right) | pause menu: Continue, Reset cart, **Exit to library**, **Exit to Q2 Pod** |
+| On-screen pad icon (top left) | hide or show the touch controls |
 | Hold Return and Centre together (1.2 s) | leave the app |
+
+The touch controls are laid out like a handheld, after PICO-8's own
+controller picture: a D-pad cross on the left and O/X on the right, drawn
+translucently over the edges of the picture. Tap the pad icon at the top
+left to hide them for games you play with the buttons alone; the icon and
+**≡** stay as faint outlines so you can bring them back and still pause.
+Hidden controls ignore touches. **X** has no physical button in this layout,
+so keep the controls shown for games that use it. The library menu's
+**Touch controls** item sets the same thing, and the choice is remembered.
 
 On Q2 Pod 1.9.0 and later the firmware forwards all five buttons (its
 `gameview` capability). On older firmware the player takes the buttons over

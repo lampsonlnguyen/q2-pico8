@@ -17,19 +17,31 @@
 
 enum { ID_RETURN, ID_PLAY, ID_PREVIOUS, ID_NEXT, ID_CENTRE };
 
-static const q2_control controls[] = {
-    {12, 70,  Q2_UP,    {8,28,62,8,8,8,8}},
-    {12, 120, Q2_LEFT,  {0,8,16,62,16,8,0}},
-    {12, 170, Q2_RIGHT, {0,8,4,62,4,8,0}},
-    {12, 220, Q2_DOWN,  {8,8,8,8,62,28,8}},
-    {331,120, Q2_O,     {0,28,34,34,34,28,0}},
-    {331,170, Q2_X,     {0,34,20,8,20,34,0}},
-    {331,220, Q2_PAUSE, {0,62,0,62,0,62,0}},   /* MENU: PICO-8's pause menu */
+/* Layout in the 375x320 view; the 2x game picture is 256x256 at (59, 32),
+ * leaving 59 px at each side, so the pads overlap its edges translucently. */
+enum { DPAD, ROUND, PILL };
+enum { Q2_TOGGLE = 1u << 16 }; /* internal: show/hide the overlay */
+typedef struct {
+    int x, y, w, h;
+    unsigned key;
+    unsigned char kind, always;
+    unsigned char glyph[7];
+} control;
+static const control controls[] = {
+    {4,   190, 78, 78, 0,        DPAD,  0, {0}},
+    {292, 228, 34, 34, Q2_O,     ROUND, 0, {0,28,34,34,34,28,0}},
+    {333, 190, 34, 34, Q2_X,     ROUND, 0, {0,34,20,8,20,34,0}},
+    {331, 6,   38, 22, Q2_PAUSE, PILL,  1, {0,62,0,62,0,62,0}},  /* PICO-8 pause menu */
+    {6,   6,   38, 22, Q2_TOGGLE,PILL,  1, {0,0,0,0,0,0,0}},     /* show/hide; glyph drawn */
 };
-unsigned q2_control_count(void) { return sizeof controls / sizeof controls[0]; }
-const q2_control *q2_control_at(unsigned i) {
-    return i < q2_control_count() ? &controls[i] : 0;
-}
+enum { CONTROL_COUNT = sizeof controls / sizeof controls[0] };
+static const unsigned char arrows[4][7] = {
+    {8,28,62,8,8,8,8},     /* up */
+    {0,8,16,62,16,8,0},    /* left */
+    {0,8,4,62,4,8,0},      /* right */
+    {8,8,8,8,62,28,8},     /* down */
+};
+static unsigned overlay_shown = 1, overlay_changed;
 
 static unsigned full, game, physical, touch_key, raw_keys;
 static unsigned combo_at, back_at, back_pending;
@@ -123,12 +135,40 @@ void q2_input_wheel(int travel, unsigned now) {
      * not also reported as Left/Right presses. */
 }
 
+/* The D-pad is a 3x3 grid: arms give one direction, corners two. */
+static unsigned dpad_keys(const control *c, int x, int y) {
+    int col = (x - c->x) * 3 / c->w, row = (y - c->y) * 3 / c->h;
+    unsigned keys = 0;
+    if (col == 0) keys |= Q2_LEFT;
+    if (col == 2) keys |= Q2_RIGHT;
+    if (row == 0) keys |= Q2_UP;
+    if (row == 2) keys |= Q2_DOWN;
+    return keys;
+}
+static int inside(const control *c, int x, int y) {
+    if (x < c->x || y < c->y || x >= c->x + c->w || y >= c->y + c->h) return 0;
+    if (c->kind == ROUND) {
+        /* A touch target a little larger than the drawn circle. */
+        int dx = 2 * (x - c->x) - c->w, dy = 2 * (y - c->y) - c->h;
+        return dx * dx + dy * dy <= c->w * c->w * 5 / 4;
+    }
+    return 1;
+}
 static unsigned control_hit(int x, int y) {
-    for (unsigned i = 0; i < q2_control_count(); ++i)
-        if (x >= controls[i].x && x < controls[i].x + Q2_CONTROL_SIZE &&
-            y >= controls[i].y && y < controls[i].y + Q2_CONTROL_SIZE)
-            return controls[i].key;
+    for (unsigned i = 0; i < CONTROL_COUNT; ++i) {
+        const control *c = &controls[i];
+        if ((!overlay_shown && !c->always) || !inside(c, x, y)) continue;
+        return c->kind == DPAD ? dpad_keys(c, x, y) : c->key;
+    }
     return 0;
+}
+
+void q2_overlay_set_visible(int on) { overlay_shown = on != 0; }
+int q2_overlay_visible(void) { return (int)overlay_shown; }
+int q2_overlay_take_changed(void) {
+    unsigned was = overlay_changed;
+    overlay_changed = 0;
+    return (int)was;
 }
 
 void q2_input_touch(char action, int x, int y, unsigned now) {
@@ -150,8 +190,17 @@ void q2_input_touch(char action, int x, int y, unsigned now) {
     }
     if (!game) return;
     unsigned key = control_hit(x, y);
-    /* Sliding onto another control presses it, like a held D-pad. */
-    if (key && key != touch_key) out.pressed |= key;
+    if (key == Q2_TOGGLE) {
+        /* Toggles on the touch that lands on it, never by sliding over it. */
+        if (action == 'd') {
+            overlay_shown = !overlay_shown;
+            overlay_changed = 1;
+        }
+        touch_key = 0;
+        return;
+    }
+    /* Sliding onto another control (or D-pad direction) presses it. */
+    if (key & ~touch_key) out.pressed |= key & ~touch_key;
     if (action == 'd' || key) touch_key = key;
 }
 
@@ -164,4 +213,78 @@ q2_input q2_input_take(unsigned now) {
     q2_input snapshot = out;
     clear_edges();
     return snapshot;
+}
+
+/* --- drawing --------------------------------------------------------- */
+enum { INK = 0xffffff, PAD = 0x5a6480, PAD_ON = 0x29adff, EDGE = 0xc2c3c7 };
+
+static void glyph(q2_plot plot, void *ctx, int cx, int cy, const unsigned char g[7],
+                  unsigned alpha) {
+    for (int gy = 0; gy < 7; ++gy)
+        for (int gx = 0; gx < 7; ++gx)
+            if (g[gy] & (1u << (6 - gx)))
+                for (int p = 0; p < 4; ++p)
+                    plot(ctx, cx - 7 + gx * 2 + (p & 1), cy - 7 + gy * 2 + (p >> 1), INK, alpha);
+}
+
+void q2_overlay_paint(q2_plot plot, void *ctx) {
+    unsigned held = out.buttons;
+    for (unsigned i = 0; i < CONTROL_COUNT; ++i) {
+        const control *c = &controls[i];
+        if (!overlay_shown && !c->always) continue;
+        /* Shown: pads 60% opaque over the game; hidden: a faint hint. */
+        unsigned body = overlay_shown ? 154 : 70, ink = overlay_shown ? 235 : 110;
+        if (c->kind == DPAD) {
+            int cell = c->w / 3;
+            /* The cross: centre plus four arms, each lit while held. */
+            static const int arm[5][2] = {{1,1},{1,0},{0,1},{2,1},{1,2}};
+            static const unsigned arm_key[5] = {0, Q2_UP, Q2_LEFT, Q2_RIGHT, Q2_DOWN};
+            for (int a = 0; a < 5; ++a) {
+                unsigned on = arm_key[a] && (held & arm_key[a]);
+                int ax = c->x + arm[a][0] * cell, ay = c->y + arm[a][1] * cell;
+                for (int y = 0; y < cell; ++y)
+                    for (int x = 0; x < cell; ++x) {
+                        /* A light rim along the cross's outline: an arm's two
+                         * long sides and its outer end; none on the centre. */
+                        int rim = 0, last = cell - 1;
+                        if (arm[a][0] == 1 && arm[a][1] != 1)      /* up or down */
+                            rim = x == 0 || x == last || y == (arm[a][1] ? last : 0);
+                        else if (arm[a][1] == 1 && arm[a][0] != 1) /* left or right */
+                            rim = y == 0 || y == last || x == (arm[a][0] ? last : 0);
+                        plot(ctx, ax + x, ay + y, rim ? EDGE : on ? PAD_ON : PAD,
+                             rim ? body : on ? 220 : body);
+                    }
+                if (a) glyph(plot, ctx, c->x + arm[a][0] * cell + cell / 2,
+                             c->y + arm[a][1] * cell + cell / 2, arrows[a - 1], ink);
+            }
+            continue;
+        }
+        unsigned on = c->key != Q2_TOGGLE && (held & c->key);
+        for (int y = 0; y < c->h; ++y)
+            for (int x = 0; x < c->w; ++x) {
+                int dx = 2 * x + 1 - c->w, dy = 2 * y + 1 - c->h;
+                if (c->kind == ROUND) {
+                    int r2 = dx * dx + dy * dy, rr = c->w * c->w;
+                    if (r2 > rr) continue;
+                    /* Soften the rim. */
+                    int rim = r2 > rr - 8 * c->w;
+                    plot(ctx, c->x + x, c->y + y, rim ? EDGE : on ? PAD_ON : PAD, on && !rim ? 220 : body);
+                } else {
+                    /* Pill: rounded ends of radius h/2. */
+                    int r = c->h, ex = dx < -(c->w - c->h) ? dx + (c->w - c->h)
+                                     : dx > c->w - c->h ? dx - (c->w - c->h) : 0;
+                    if (ex * ex + dy * dy > r * r) continue;
+                    plot(ctx, c->x + x, c->y + y, on ? PAD_ON : PAD, on ? 220 : body);
+                }
+            }
+        int cx = c->x + c->w / 2, cy = c->y + c->h / 2;
+        if (c->key != Q2_TOGGLE) {
+            glyph(plot, ctx, cx, cy, c->glyph, ink);
+            continue;
+        }
+        /* Toggle: a small pad outline (overlay shown) or a filled pad. */
+        static const unsigned char pad_open[7] = {0,62,73,93,73,62,0};
+        static const unsigned char pad_full[7] = {0,62,127,127,127,62,0};
+        glyph(plot, ctx, cx, cy, overlay_shown ? pad_open : pad_full, ink);
+    }
 }
