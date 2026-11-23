@@ -124,11 +124,16 @@ extern "C" int q2_main(void) {
     app::set_exe(argv ? argv[0] : nullptr);
     /* Logger_Initialize reopens stderr as <data>/pico.log. */
     Logger_Initialize((app::data_dir() + "/").c_str());
+    Logger_Write("q2-pico8 startup: executable entered, opening display\n");
     if (q2_open()) {
-        /* No Q2 framebuffer (CI's QEMU smoke test): return cleanly. */
+        /* On a physical Q2 a framebuffer failure is an actual error.
+         * Only the headless QEMU smoke test may explicitly opt out. */
+        Logger_Write("q2-pico8 startup: framebuffer unavailable; startup aborted\n");
+        int code = getenv("Q2_PICO8_ALLOW_NO_FB") ? 0 : 1;
         Logger_Exit();
-        return 0;
+        return code;
     }
+    Logger_Write("q2-pico8 startup: framebuffer and input ready\n");
     int status = 0;
     const char *only = getenv("Q2_PICO8_CART");
 #ifdef Q2_FAKE08_SMOKE
@@ -140,8 +145,17 @@ extern "C" int q2_main(void) {
         Played played = play(only, message);
         status = played == PLAYED_ERROR ? 2 : 0;
     } else {
+        /* Paint a visible frame before scanning carts, decoding PNG covers,
+         * sorting or allocating the Cover Flow cache. If these steps fail on
+         * real hardware the screen and pico.log identify how far we got. */
+        ui::clear(ui::BLACK);
+        ui::caption(85, "PICO-8", ui::WHITE, ui::LARGE);
+        ui::caption(137, "Opening game library...", ui::GRAY, ui::MEDIUM);
+        q2_present_canvas();
+        Logger_Write("q2-pico8 startup: first framebuffer frame submitted\n");
         std::string last, message;
         while (true) {
+            Logger_Write("q2-pico8 startup: entering library loop\n");
             LibraryChoice choice = library_run(last, message);
             message.clear();
             if (choice.exit) break;

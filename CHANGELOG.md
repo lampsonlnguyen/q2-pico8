@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.4.1-alpha — black-screen recovery and startup diagnostics
+
+- **Install correction:** v0.4.0-alpha accidentally published the browser-preview
+  ZIP alongside the playable ZIP even though both overwrite the same
+  `.pico8/q2-pico8` executable. The release now ships only the playable ZIP;
+  the browser preview remains available as a CI-only artifact.
+- **Visible startup:** the player presents a PICO-8 loading frame before
+  entering Cover Flow, rather than leaving the display blank while the
+  library and covers are initialized.
+- **Diagnostic logging:** `.pico8/pico.log` now records framebuffer and
+  input setup stages and precise startup failures.
+- **Failure signaling:** missing or unsupported `/dev/fb0` now returns a
+  nonzero exit code on the Q2 instead of silently succeeding. Headless
+  QEMU CI explicitly opts in to the no-framebuffer test path.
+- **Regression test:** the host simulator checks that the first frame is
+  visibly nonblack before testing game loading and input.
+
+**Physical-device status:** this is a testable fix candidate, not a verified
+hardware resolution. The available CI cannot inspect a physical Shanling
+Q2's framebuffer. If startup still fails, preserve and share
+`.pico8/pico.log` so the remaining failure can be identified.
+
+### Install
+
+Download **only** `q2-pico8-playable-experimental.zip` from
+[v0.4.1-alpha](https://github.com/lampsonlnguyen/q2-pico8/releases/tag/v0.4.1-alpha),
+extract it to the root of the SD card, and replace the old
+`.pico8/q2-pico8` and `.pico8/q2app` files. Keep your carts, covers and
+game saves.
+
 ## v0.3.0-alpha
 
 ### Fixes the cart-load crash in v0.2.0-alpha
