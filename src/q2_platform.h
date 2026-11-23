@@ -7,8 +7,15 @@ extern "C" {
 #endif
 enum { Q2_WIDTH=375, Q2_HEIGHT=320, P8_WIDTH=128, P8_HEIGHT=128 };
 typedef uint32_t q2_pixel;
-/* wheel: travel since the last read, 200 a turn, clockwise positive. */
-typedef struct { unsigned buttons; unsigned pressed; int wheel; unsigned quit; } q2_input;
+/* wheel: travel since the last read, 200 a turn, clockwise positive.
+ * touch: 1 while a finger is down, at (touch_x, touch_y) in the 375x320
+ * view; touch_began/touch_ended latch a down/up since the last read, and
+ * touch_start_x/y is where the current or last touch began. */
+typedef struct {
+    unsigned buttons; unsigned pressed; int wheel; unsigned quit;
+    int touch, touch_x, touch_y, touch_start_x, touch_start_y;
+    unsigned touch_began, touch_ended;
+} q2_input;
 enum { Q2_LEFT=1, Q2_RIGHT=2, Q2_UP=4, Q2_DOWN=8, Q2_O=16, Q2_X=32, Q2_PAUSE=64 };
 /* Initialize framebuffer + Q2 Pod card input socket. Returns 0 on success. */
 int q2_open(void);
@@ -20,6 +27,11 @@ void q2_present(const uint8_t *packed_pixels, const uint32_t palette[16]);
 void q2_present_fake08(const uint8_t *packed_pixels,
                        const uint8_t screen_map[16],
                        const uint32_t colors[144]);
+/* Native-resolution UI: a 375x320 0xRRGGBB canvas, row-major
+ * (canvas[y*Q2_WIDTH+x]), presented with the same rotation and page flip
+ * as the game picture. The library and Get Games screens draw here. */
+uint32_t *q2_canvas(void);
+void q2_present_canvas(void);
 unsigned q2_millis(void);
 void q2_close(void);
 /* Q2 Pod starts an audio=1 game with the output device (plughw:0,0,

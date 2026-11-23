@@ -2,9 +2,9 @@ Q2_CC ?= clang
 Q2_LD ?= ld.lld
 FLAGS = --target=mipsel-linux-gnu -march=mips32r2 -mabi=32 -mfp64 -mnan=2008 -mabs=2008 -mno-abicalls -fno-pic -G0 -ffreestanding -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables
 CFLAGS = $(FLAGS) -Oz -Wall -Wextra -Werror -std=c11 -Isrc
-OBJ = build/q2_platform.o build/cart_browser.o build/cart_browser_probe.o
+OBJ = build/q2_platform.o build/q2_input.o build/cart_browser.o build/cart_browser_probe.o
 all: dist/q2-femto8-browser-preview.zip
-build/%.o: src/%.c src/q2_platform.h
+build/%.o: src/%.c src/q2_platform.h src/q2_input.h
 	mkdir -p build
 	$(Q2_CC) $(CFLAGS) -c $< -o $@
 dist/.pico8/q2-pico8: $(OBJ)
