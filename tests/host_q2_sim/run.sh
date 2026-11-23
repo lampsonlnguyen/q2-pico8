@@ -65,7 +65,7 @@ if visible < 300:
     sys.exit(1)
 print(f"ok   startup frame visibly painted ({visible} pixels)")
 PY
-need library "library: selected 1 " "Next did not move the selection"
+need library "library: selected 1 " "the clickwheel did not move the selection"
 need library "library: selected 2 demo.p8" "a tap on a side cover did not select it"
 need library "library: exit" "Return did not leave the library"
 
@@ -73,6 +73,7 @@ need library "library: exit" "Return did not leave the library"
 run play-return play-return.txt || { echo "FAIL: play-return"; fail=1; }
 need play-return "library: launch input.p8" "Centre did not launch the selected cart"
 need play-return "Start of GameLoop" "the cart did not run"
+python3 "$SIMDIR/check.py" menu-ghost "$OUTBASE/play-return" || fail=1
 [ "$(grep -c 'library: [0-9]* carts' "$OUTBASE/play-return/pico.log")" -ge 2 ] \
     || { echo "FAIL: did not return to the library"; fail=1; }
 need play-return "library: exit" "Return did not leave after the cart"
@@ -91,13 +92,15 @@ run png-cart empty.txt "Q2_PICO8_CART=Blue Circle [itch 12345].p8.png" Q2_SIM_MA
     || { echo "FAIL: PNG cart (web-export layout) did not run"; fail=1; }
 need png-cart "Start of GameLoop" "the PNG cart did not reach GameLoop"
 
-# --- 7. controls: Pocket Boy layout, Return + Centre ends the app ---
+# --- 7. controls: Pocket Boy layout, Return hold ends the app ---
 run input-controls controls-full.txt Q2_PICO8_CART=input.p8 || { echo "FAIL: input-controls"; fail=1; }
 python3 "$SIMDIR/check.py" full "$OUTBASE/input-controls" || fail=1
 
-# --- 7b. touch overlay: O/X and hide/show ---
+# --- 7b. touch D-pad, overlay toggle, Centre remap and clickwheel option ---
 run input-overlay overlay.txt Q2_PICO8_CART=input.p8 || { echo "FAIL: input-overlay"; fail=1; }
 python3 "$SIMDIR/check.py" overlay "$OUTBASE/input-overlay" || fail=1
+grep -Fx "centre=o" "$SD/library.cfg" && grep -Fx "wheel=on" "$SD/library.cfg" \
+    || { echo "FAIL: controls were not saved on exit"; fail=1; }
 
 # --- 8. controls: Q2 Pod 1.8 fallback, Back twice ends the app ---
 run input-fallback controls-fallback.txt Q2_PICO8_CART=input.p8 Q2_SIM_FULL=0 \

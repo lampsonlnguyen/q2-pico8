@@ -151,7 +151,7 @@ bool game_menu() {
         }
         bool main = page == MenuPage::Main;
         bool display = page == MenuPage::Display;
-        const int count = main ? 7 : display ? 2 : 3;
+        const int count = main ? 7 : display ? 4 : 3;
         if (in.pressed & Q2_PAUSE) {
             if (main) break;
             page = MenuPage::Main;
@@ -194,7 +194,9 @@ bool game_menu() {
                 page = MenuPage::Main;
                 focus = 0;
             } else if (display) {
-                q2_overlay_set_visible(!q2_overlay_visible());
+                if (focus == 0) q2_overlay_set_visible(!q2_overlay_visible());
+                if (focus == 1) q2_input_set_centre(q2_input_centre() == Q2_O ? Q2_X : Q2_O);
+                if (focus == 2) q2_input_set_game_wheel(!q2_input_game_wheel());
                 q2_overlay_mark_changed();
             } else if (focus == 0) {
                 game_muted = !game_muted;
@@ -208,7 +210,9 @@ bool game_menu() {
             const char *const main_labels[] = {"Resume", "Q2 Now Playing", "Display and controls",
                                                 "Audio", "ROM Library", "Exit to Q2 Pod", "Cartridge menu"};
             const char *const display_labels[] = {
-                q2_overlay_visible() ? "Touch O and X: Shown" : "Touch O and X: Hidden", "Back"};
+                q2_overlay_visible() ? "Touch controls: Shown" : "Touch controls: Hidden",
+                q2_input_centre() == Q2_O ? "Centre: O / Touch: X" : "Centre: X / Touch: O",
+                q2_input_game_wheel() ? "In-game Clickwheel: On" : "In-game Clickwheel: Off", "Back"};
             const char *const audio_labels[] = {
                 game_muted ? "Game sound: Muted" : "Game sound: On",
                 music_mode ? "Audio source: Q2 Music" : "Audio source: Game", "Back"};
@@ -222,9 +226,8 @@ bool game_menu() {
             }
             if (*status) ui::caption(303, status, ui::WHITE, ui::SMALL);
             else if (display) {
-                ui::caption(158, "Return / Play: Up / Down", ui::GRAY, ui::SMALL);
-                ui::caption(182, "Previous / Next: Left / Right", ui::GRAY, ui::SMALL);
-                ui::caption(206, "Centre: X", ui::GRAY, ui::SMALL);
+                ui::caption(218, "Return / Play: Up / Down", ui::GRAY, ui::SMALL);
+                ui::caption(242, "Previous / Next: Left / Right", ui::GRAY, ui::SMALL);
             }
             q2_present_canvas();
             dirty = false;

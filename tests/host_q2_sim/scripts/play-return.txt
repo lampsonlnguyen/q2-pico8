@@ -8,6 +8,11 @@
 2600 key PREV up
 4300 touch 350 17 down
 4400 touch 350 17 up
+# Centre should resume the game despite a stray pointer-up over ROM Library.
+4600 touch 188 212 up
+4600 key CENTRE press
+4700 touch 350 17 down
+4750 touch 350 17 up
 4800 touch 188 212 down
 4900 touch 188 212 up
 6500 key RETURN press

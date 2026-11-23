@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Cover Flow cart library, after Pocket Boy's ROM shelf
  * (github.com/SlayTheEarth/q2-boy):
- *   Previous / Next / swipe   browse
+ *   Clickwheel / Previous / Next / swipe   browse
  *   Centre or tap the centre cover    play
  *   tap a side cover                  select it
  *   Play/Pause or tap the dots        menu (Get Games, sort, refresh, exit)
@@ -49,12 +49,16 @@ void load_config() {
     for (const auto &line : app::read_lines(config_path(), 16)) {
         if (line == "sort=recent") sort_mode = SORT_RECENT;
         if (line == "controls=hidden") q2_overlay_set_visible(0);
+        if (line == "centre=o") q2_input_set_centre(Q2_O);
+        if (line == "wheel=on") q2_input_set_game_wheel(1);
     }
     recent = app::read_lines(recent_path(), 50);
 }
 void save_config() {
     app::write_lines(config_path(), {sort_mode == SORT_RECENT ? "sort=recent" : "sort=title",
-                                     q2_overlay_visible() ? "controls=shown" : "controls=hidden"});
+                                     q2_overlay_visible() ? "controls=shown" : "controls=hidden",
+                                     q2_input_centre() == Q2_O ? "centre=o" : "centre=x",
+                                     q2_input_game_wheel() ? "wheel=on" : "wheel=off"});
 }
 
 std::string lower(std::string s) {
@@ -215,6 +219,10 @@ int cover_at(int x, int y) {
 }
 } // namespace
 
+void library_save_controls() {
+    if (q2_overlay_take_changed()) save_config();
+}
+
 void library_played(const std::string &cart) {
     load_config();
     recent.erase(std::remove(recent.begin(), recent.end(), cart), recent.end());
@@ -225,15 +233,16 @@ void library_played(const std::string &cart) {
 
 LibraryChoice library_run(const std::string &keep, const std::string &message) {
     load_config();
-    /* Remember a show/hide made with the in-game toggle. */
-    if (q2_overlay_take_changed()) save_config();
+    library_save_controls();
     covers::set_dirs(app::cart_dir(), app::art_dir());
     scan(keep);
     Logger_Write("library: %zu carts, selected %d\n", carts.size(), selected);
     if (!message.empty()) notify(message);
     LibraryChoice choice;
     bool menu = false, dragging = false, dirty = true;
-    int focus = 0, drag_x = 0;
+    constexpr int wheel_tick = 38;
+    int focus = 0, drag_x = 0, wheel_travel = 0;
+    unsigned last_wheel = 0;
     unsigned last_scan = q2_millis();
     float drag_flow = 0;
     title_since = q2_millis();
@@ -257,9 +266,17 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
                 continue;
             }
         } else {
+            if (in.wheel && !in.touch && !dragging) {
+                if (now - last_wheel > 300u) wheel_travel = 0;
+                last_wheel = now;
+                wheel_travel += in.wheel;
+                int steps = wheel_travel / wheel_tick;
+                wheel_travel %= wheel_tick;
+                if (steps) select(selected + steps);
+            }
             if (in.pressed & Q2_LEFT) select(selected - 1);
             if (in.pressed & Q2_RIGHT) select(selected + 1);
-            if (in.pressed & Q2_X) { menu = true; focus = 0; }
+            if (in.pressed & Q2_X) { menu = true; focus = wheel_travel = 0; }
             if (in.pressed & Q2_PAUSE) { choice.exit = true; break; }
             if ((in.pressed & Q2_O) && !carts.empty()) {
                 choice.cart = carts[selected].file;
@@ -287,6 +304,7 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
                     if (i >= 0) select(i);
                 }
             }
+            if (!in.touch) dragging = false;
         }
         /* New carts copied over USB or by Get Games appear by themselves. */
         if (now - last_scan > 5000 && !menu && !dragging) {

@@ -1,7 +1,7 @@
 # tests/input.p8 with all five buttons (Pocket Boy layout); ms since q2_open.
 # Previous/Next/Return/Play held = Left/Right/Up/Down, Centre = X,
 # touch O changes colour, the wheel is ignored,
-# and Return + Centre held 1.2 s ends the app.
+# and Return held 700 ms ends the app.
 500 key PREV down
 1100 key PREV up
 1300 key NEXT down
@@ -18,5 +18,4 @@
 4400 wheel 30
 4500 wheel 30
 5000 key RETURN down
-5050 key CENTRE down
 7000 quit

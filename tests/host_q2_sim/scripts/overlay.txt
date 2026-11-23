@@ -1,16 +1,31 @@
-# The left side has no directional touch control. Test O, Menu, and the O/X toggle.
+# D-pad left, hide controls, then remap Centre and enable the game wheel.
 500 touch 17 229 down
 1100 touch 17 229 up
-1300 key NEXT down
-1900 key NEXT up
 2100 touch 25 17 down
 2150 touch 25 17 up
-2400 touch 350 207 down
-2500 touch 350 207 up
+2400 touch 17 229 down
+2500 touch 17 229 up
 2700 touch 309 245 down
 3300 touch 309 245 up
 3500 touch 25 17 down
 3550 touch 25 17 up
-3800 touch 350 207 down
-3900 touch 350 207 up
-4600 quit
+3800 touch 350 17 down
+3850 touch 350 17 up
+4000 touch 188 141 down
+4060 touch 188 141 up
+4200 touch 188 105 down
+4260 touch 188 105 up
+4400 touch 188 141 down
+4460 touch 188 141 up
+4600 touch 188 177 down
+4660 touch 188 177 up
+4800 touch 188 69 down
+4860 touch 188 69 up
+5100 key CENTRE press
+5500 touch 350 207 down
+5600 touch 350 207 up
+5900 wheel 30
+6000 wheel 30
+6100 wheel 30
+6200 wheel 30
+6800 quit

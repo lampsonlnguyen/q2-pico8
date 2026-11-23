@@ -11,7 +11,7 @@ typedef uint32_t q2_pixel;
  * view; touch_began/touch_ended latch a down/up since the last read, and
  * touch_start_x/y is where the current or last touch began. */
 typedef struct {
-    unsigned buttons; unsigned pressed; unsigned quit;
+    unsigned buttons; unsigned pressed; unsigned quit; int wheel;
     int touch, touch_x, touch_y, touch_start_x, touch_start_y;
     unsigned touch_began, touch_ended;
 } q2_input;
@@ -43,7 +43,7 @@ void q2_debug_stage(unsigned stage, uint32_t rgb, const char *what);
  * plug:bluealsa or usb) and, off the jack, its volume (NN soft, hNN shown
  * only) as arguments: q2_audio_open() uses them. */
 void q2_set_args(int argc, char **argv);
-/* Gameplay maps the four outer buttons to directions and Centre to X.
+/* Gameplay maps the four outer buttons to directions and Centre to the selected action.
  * Menus use Centre to confirm and Return to go back. */
 void q2_set_game_mode(int on);
 void q2_resume_display(void);

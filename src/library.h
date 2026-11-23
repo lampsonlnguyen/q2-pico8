@@ -14,4 +14,6 @@ struct LibraryChoice {
 LibraryChoice library_run(const std::string &select, const std::string &message = "");
 /* Puts the cart at the front of Recently played. */
 void library_played(const std::string &cart);
+/* Flush control changes when returning to the shelf or leaving the app. */
+void library_save_controls();
 #endif

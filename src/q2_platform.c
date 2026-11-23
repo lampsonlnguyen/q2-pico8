@@ -275,7 +275,7 @@ unsigned q2_millis(void) {
 /* Pocket Boy's approach on firmware without gameview: grab the Q2's GPIO
  * keys so Return, Play/Pause, Previous, Next and Centre all reach the app.
  * Q2 Pod then no longer sees them (its Return-hold exit included), so the
- * app ends itself on Return + Centre held, as gameview firmware does.
+ * app ends itself when Return is held.
  * Closing the descriptor, or the process ending, releases the grab. */
 enum { SYS_READ=4003, O_NONBLOCK_MIPS=0x80,
        EVIOCGNAME_80=0x40504506,  /* _IOC(_IOC_READ,'E',0x06,80) on MIPS */
@@ -409,7 +409,9 @@ q2_input q2_read_input(void) {
 #endif
     while(sock>=0&&(n=sc(SYS_RECV,sock,(long)m,sizeof m-1,MSG_DONTWAIT,0,0))>0) {
         m[n]=0;
-        if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
+        if(n>=3&&m[0]=='w'&&m[1]==' ') {
+            q2_input_wheel(-number(m+2),now); /* Firmware travel is anticlockwise. */
+        } else if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
 #ifdef Q2_GLIBC
             if(keys>=0)continue; /* grabbed: the GPIO device is the source */
 #endif
@@ -417,7 +419,8 @@ q2_input q2_read_input(void) {
         } else if(n>=3&&m[0]=='t'&&m[1]==' ') {
             const char *x=m[2]&&m[3]==' '?m+4:m+3;
             const char *y=next_field(x);
-            q2_input_touch(m[2],number(x),*y?number(y):0,now);
+            if (*x && *y) q2_input_touch(m[2],number(x),number(y),now);
+            else if (m[2]=='u') q2_input_touch('u',-1,-1,now);
         }
     }
     return q2_input_take(now);
@@ -479,7 +482,9 @@ static void present_mapped(const uint8_t *pixels,const uint8_t *map,
 }
 void q2_resume_display(void) {
     if(fb>=0&&!sc(SYS_IOCTL,fb,FB_VSCREEN,(long)var,0,0,0))visible=var[5];
-    q2_input_set_game(0);
+    int quit = q2_input_take(q2_millis()).quit;
+    q2_input_reset();
+    if(quit)q2_input_quit();
 }
 static void flip(unsigned page,q2_pixel *dest) {
     if(can_pan){

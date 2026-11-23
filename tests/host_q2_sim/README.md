@@ -58,7 +58,7 @@ bash tests/host_q2_sim/run.sh [outbase]
 two `.p8.png` carts from `tests/make_png_cart.py`, builds the sim, then runs
 the real `src/fake08_main.cpp`:
 
-1. **library** (`scripts/library.txt`) — Cover Flow: ignored wheel, Next, Previous, a tap
+1. **library** (`scripts/library.txt`) — Cover Flow: clickwheel navigation, a tap
    on a side cover, the menu, Return leaves.
 2. **play-return** — library → `input.p8` → on-screen menu → "exit to
    library" → back in the library → Return.

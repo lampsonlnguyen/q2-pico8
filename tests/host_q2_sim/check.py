@@ -4,7 +4,7 @@ btn 0-3, O changes its colour, X recentres it).
 
   check.py full <scenario dir>      Pocket Boy layout (all five buttons)
   check.py fallback <scenario dir>  Q2 Pod 1.8 fallback layout
-  check.py overlay <scenario dir>   touch D-pad, diagonals, hide/show
+  check.py overlay <scenario dir>   D-pad, Centre remap and optional wheel
 
 Times match the scripts in tests/host_q2_sim/scripts/. Exits 1 on failure.
 """
@@ -60,7 +60,9 @@ def expect(ok, what):
 def main():
     mode, d = sys.argv[1], Path(sys.argv[2])
     stats = json.loads((d / "stats.json").read_text())
-    if mode == "full":
+    if mode == "menu-ghost":
+        expect(pixel(d, 4660, 130, 270) == BG, "Centre resumes despite a stale touch-up")
+    elif mode == "full":
         x0, y0, c0 = circle(d, 450)
         x1, _, _ = circle(d, 1150)
         expect(x1 < x0 - 10, f"Previous held moves Left ({x0:.0f} -> {x1:.0f})")
@@ -77,8 +79,8 @@ def main():
         expect(c6 != c5, f"touch O changes colour ({c5} -> {c6})")
         x7, _, _ = circle(d, 4700)
         expect(abs(x7 - x6) < 1, f"wheel leaves position unchanged ({x6:.0f} -> {x7:.0f})")
-        expect(stats["exit_reason"] == "return-centre",
-               f"Return + Centre held ends the app (exit: {stats['exit_reason']})")
+        expect(stats["exit_reason"] == "return-hold",
+               f"Return held ends the app (exit: {stats['exit_reason']})")
     elif mode == "fallback":
         x0, _, _ = circle(d, 450)
         x1, _, _ = circle(d, 1150)
@@ -88,20 +90,25 @@ def main():
         expect(stats["exit_reason"] == "double-back",
                f"Back twice ends the app (exit: {stats['exit_reason']})")
     elif mode == "overlay":
-        x0, y0, _ = circle(d, 450)
-        x1, y1, _ = circle(d, 1150)
-        expect(abs(x1 - x0) < 1 and abs(y1 - y0) < 1, "left-side touch does not move the circle")
-        shown = pixel(d, 1950, 350, 207)
-        hidden = pixel(d, 2300, 350, 207)
-        expect(sum(shown) > 100 and sum(hidden) < 20, "toggle hides X")
+        x0, _, _ = circle(d, 450)
+        x1, _, _ = circle(d, 1150)
+        expect(x1 < x0 - 10, f"touch D-pad moves left ({x0:.0f} -> {x1:.0f})")
+        shown = pixel(d, 1950, 17, 229)
+        hidden = pixel(d, 2300, 17, 229)
+        expect(sum(shown) > 100 and sum(hidden) < 20, "toggle hides the D-pad")
         expect(sum(pixel(d, 2300, 350, 17)) > 20, "Menu remains visible")
         x3, y3, c3 = circle(d, 2350)
         x4, y4, c4 = circle(d, 3350)
         expect(abs(x4 - x3) < 1 and abs(y4 - y3) < 1 and c4 == c3,
-               "hidden X and O ignore touches")
-        x5, y5, _ = circle(d, 4100)
-        expect(sum(pixel(d, 4100, 350, 207)) > 100, "toggle shows X again")
-        expect(abs(x5 - 64) < 3 and abs(y5 - 64) < 3, f"shown X recentres ({x5:.0f},{y5:.0f})")
+               "hidden D-pad and O ignore touches")
+        x5, _, c5 = circle(d, 5300)
+        expect(abs(x5 - x4) < 1 and c5 != c4, "mapped Centre presses O")
+        expect(sum(pixel(d, 5300, 350, 207)) > 100, "complementary touch X is visible")
+        expect(sum(pixel(d, 5300, 320, 245)) < 20, "mapped O is removed from overlay")
+        x6, y6, _ = circle(d, 5750)
+        expect(abs(x6 - 64) < 3 and abs(y6 - 64) < 3, "touch X recentres the circle")
+        x7, _, _ = circle(d, 6650)
+        expect(x7 > x6 + 6, "enabled clickwheel moves the circle right")
     else:
         raise SystemExit(__doc__)
     if failures:

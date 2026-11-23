@@ -67,7 +67,7 @@ PNG in `/.pico8/covers/` named after the cart file plus `.png` (for example
 
 | Q2 control | Library |
 | --- | --- |
-| Previous / Next, swipe | browse |
+| Clickwheel, Previous / Next, swipe | browse |
 | Centre, or tap the centre cover | play |
 | Tap a side cover | select it |
 | Play/Pause, or tap **⋯** | menu: Get Games, Sort (title or recently played), Refresh, Exit |
@@ -77,35 +77,34 @@ New carts copied to the card show up within a few seconds.
 
 ## Controls in a cart
 
-The physical directions follow Pocket Boy. The capacitive wheel is ignored throughout PICO-8.
+The physical directions follow Pocket Boy. The clickwheel browses Cover Flow
+and can be enabled separately for left/right during games.
 
 | Q2 control | PICO-8 |
 | --- | --- |
 | Return / Play/Pause / Previous / Next | Up / Down / Left / Right |
-| Centre | X |
-| Touch **O** and **X** | PICO-8 action buttons |
+| Centre | X by default, configurable to O |
+| Touch D-pad and the other action button | Directions and O or X |
 | Touch **≡** (top right) | Open Menu |
-| Touch the pad icon (top left) | Show or hide O and X |
-| Hold Return and Centre together (1.2 s) | Leave the app |
+| Touch the pad icon (top left) | Show or hide the touch controls |
+| Hold Return (0.7 s) | Leave the app |
 
 Menu pauses the cart. Use Previous and Next to move, Centre to select and Return
 to go back, or tap a row. **Q2 Now Playing** opens the firmware's music screen
-and Return brings you back. **Display and controls** shows the button mapping
-and lets you show or hide O and X. **Audio** lets you mute the game or switch
-between game sound and Q2 Music. **ROM Library** closes the cart and opens
-Cover Flow. **Exit to Q2 Pod** closes the app. **Cartridge menu** opens
-FAKE-08's pause menu, including Reset cart and cart-specific actions.
-
-Touch O is the only O control. The pad icon and Menu remain available when O
-and X are hidden. The library remembers the overlay setting when you return.
+and Return brings you back. **Display and controls** lets you toggle the touch
+overlay, select Centre's action, and enable the in-game clickwheel. The
+clickwheel starts off in games and the app remembers your settings. **Audio**
+lets you mute the game or switch between game sound and Q2 Music.
+**ROM Library** returns to Cover Flow. **Exit to Q2 Pod** closes the app.
+**Cartridge menu** opens FAKE-08's pause menu with Reset cart and cart actions.
 
 On firmware with `gameview`, Q2 Pod forwards all five physical buttons.
-On older firmware q2-pico8 attempts to grab the GPIO key device, as Pocket Boy
-does. If the grab fails, Return opens Menu and pressing it twice within half a
-second exits. Play/Pause, Previous, Next and Centre still provide Down, Left,
-Right and X. Q2 Now Playing and audio-source switching require firmware with
-both `audio2` and `gameview`. After switching to or from older firmware,
-re-enter Library → Games after the first launch so Q2 Pod rereads the audio mode.
+Older firmware uses the GPIO key device when available. If the grab fails,
+the firmware handles the Return hold, a short Return opens Menu during play,
+and Back twice within half a second also exits. Q2 Now Playing and
+audio-source switching require firmware with both `audio2` and `gameview`.
+After switching firmware, re-enter Library → Games after the first launch
+so Q2 Pod rereads the audio mode.
 
 The player saves cart data and closes the sound on its way out.
 
@@ -133,7 +132,7 @@ uses Pocket Boy's itch.io guest-download flow and the root certificates in
 ## Source files
 
 - `src/q2_platform.c`: MIPS32 syscalls, 375×320 rotated framebuffer (2× PICO-8 picture and the native-resolution UI canvas), the input socket and the GPIO key grab.
-- `src/q2_input.c`: the button and touch mapping, shared by the device and the host simulation.
+- `src/q2_input.c`: the button, wheel and touch mapping, shared by the device and the host simulation.
 - `src/library.cpp`, `src/coverflow.cpp`, `src/covers.cpp`, `src/ui.cpp`: the Cover Flow library, its projection, cart artwork and text drawing.
 - `src/getgames.cpp`, `src/itch.c`, `src/itch-helper/`: Get Games, the helper process runner and the Go helper (`go test -mod=vendor` in that folder).
 - `tests/audio.p8`: Original CC0 test cartridge that plays a sustained sine sfx; the native smoke test runs it to verify the synth produces non-silent audio. `tests/demo.p8` is the earlier silent frame-only cart.
@@ -235,8 +234,8 @@ key codes, wheel travel and touch), a WAV audio sink and a fake SD card
 - Library: button navigation and side-cover taps move the selection.
 - Library → cart → Menu → ROM Library → back in the library.
 - Get Games with a stand-in helper: list, download, the cart appears.
-- Controls: the four directions, Centre as X, touch O and X, ignored wheel
-  events, and the Return + Centre exit shortcut.
+- Controls: physical and touch directions, remapped Centre and touch action,
+  clickwheel navigation, and the Return-hold exit shortcut.
 - A `.p8.png` cart in the layout the helper writes for web exports runs.
 - Pacing (~16.2 ms ticks; 30 and 60 FPS carts) and audio (non-silent,
   262 Hz, 367/368 frames per tick).

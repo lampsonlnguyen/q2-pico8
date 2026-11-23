@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Q2 PICO-8 player: the Cover Flow library, then the chosen cart in the
  * upstream FAKE-08 VM, then back to the library when selected in Menu.
- * Return + Centre held (or Q2 Pod ending the app) leaves from anywhere.
+ * Return held (or Q2 Pod ending the app) leaves from anywhere.
  *
  * Q2_PICO8_CART=<file> runs one cart from the cart folder without the
  * library and exits when it ends (host simulation and debugging).
@@ -212,6 +212,7 @@ extern "C" int q2_main(void) {
             if (play(choice.cart, message) == PLAYED_QUIT) break;
         }
     }
+    library_save_controls();
     q2_close(); /* also closes the audio device and releases grabbed keys */
     /* Vm/Audio/Host destructors have run (play() returned), before
      * Logger_Exit() closes stderr. */
