@@ -1,0 +1,6 @@
+PICO-8 launcher icon artwork
+
+Source: https://explore-feed.github.com/topics/pico-8/pico-8.png
+From the PICO-8 topic on GitHub: https://github.com/topics/pico-8
+
+Resized to 52 and 40 pixels for Q2 Pod.

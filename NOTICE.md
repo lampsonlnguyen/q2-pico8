@@ -9,8 +9,8 @@ The Q2 adapter is GPL-3.0-or-later (see `LICENSE`). It combines:
 | Liberation Sans Regular, as Pocket Boy's generated masks (`src/ui_font.h`) | UI text | SIL Open Font License 1.1 (`src/FONT-LICENSE`) |
 | NextUI-Itchio-Pak (Christophe Vanlancker) | itch.io guest download flow, via Pocket Boy | MIT (`src/itch-helper/NextUI-Itchio-Pak-LICENSE`) |
 | Go standard library, `golang.org/x/net`, `golang.org/x/image`, `github.com/skip2/go-qrcode` | The `q2-pico8-itch` helper (vendored in `src/itch-helper/vendor`) | BSD-3-Clause, BSD-3-Clause, BSD-3-Clause, MIT |
-| [Lucide gamepad-2](https://lucide.dev/icons/gamepad-2) | App icon, rasterized with a colored background | ISC (`assets/Lucide-ISC.txt`) |
+| [PICO-8 topic artwork](https://github.com/topics/pico-8) | Launcher icons resized to 52 and 40 pixels | Source attribution in `assets/PICO-8-Icon.txt` |
 | Root certificates (`itch-ca.pem` in the package) | HTTPS to itch.io | Mozilla's CA bundle as shipped by the build host's `ca-certificates` |
 
-No cartridges or PICO-8 proprietary assets are bundled. Carts you download
+No cartridges or proprietary PICO-8 runtime are bundled. Carts you download
 with Get Games remain subject to their authors' licenses.
