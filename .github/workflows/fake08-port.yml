@@ -166,7 +166,14 @@ jobs:
           set -euxo pipefail
           # No Q2 framebuffer in the runner; the app should return cleanly
           # from q2_open(). This verifies loader, libc and static C++ startup.
-          timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/player/.pico8/q2-pico8
+          # Headless QEMU has no /dev/fb0. Explicitly opt into the
+          # headless test path; real Q2 framebuffer failures must be
+          # nonzero errors instead of silently returning a black screen.
+          Q2_PICO8_ALLOW_NO_FB=1 timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/player/.pico8/q2-pico8
+          if timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/player/.pico8/q2-pico8; then
+            echo 'FAIL: framebuffer failure must exit nonzero on real Q2' >&2
+            exit 1
+          fi
           # The Go helper is static soft-float MIPS; "qr" needs no network.
           readelf -h dist/player/.pico8/q2-pico8-itch | grep -i nan2008
           timeout 30s qemu-mipsel dist/player/.pico8/q2-pico8-itch qr https://example.itch.io/game > /tmp/qr.txt
@@ -199,18 +206,17 @@ jobs:
         with:
           name: q2-pico8-playable-experimental
           path: dist
-      - name: Download tested browser preview
-        uses: actions/download-artifact@v6
-        with:
-          name: q2-pico8-browser-preview
-          path: dist
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          assets=(dist/q2-pico8-playable-experimental.zip dist/q2-femto8-browser-preview.zip)
+          # Never publish the freestanding browser preview alongside the
+          # playable player: both archives install under /.pico8/ and
+          # extracting the preview can overwrite the working executable.
+          # Keep preview as a CI-only artifact for developer testing.
+          assets=(dist/q2-pico8-playable-experimental.zip)
           for asset in "${assets[@]}"; do test -s "$asset"; done
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
