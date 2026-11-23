@@ -151,16 +151,23 @@ The [Q2 PICO-8 bridge workflow](https://github.com/lampsonlnguyen/q2-pico8/actio
 - Builds the device MIPS executable with the firmware sysroot, checks its ELF/runtime ABI, runs a QEMU startup smoke test, and uploads `q2-pico8-playable-experimental` and `q2-pico8-browser-preview` artifacts.
 - **Only after both test/build jobs succeed for a version tag**, creates or updates a GitHub Release with **only** `q2-pico8-playable-experimental.zip`. The colliding browser preview remains available as a CI artifact for developers, but is not published alongside the playable app. Tags containing `-alpha`, `-beta`, or `-rc` are published as prereleases.
 
-To publish a tested version, push a version tag pointing to the desired commit:
+To publish a **new tested alpha version**, update the `VERSION` file
+(e.g. `0.4.1-alpha`) and merge into `main`. GitHub Actions runs both
+the real FAKE-08 host simulation and Q2 cross-build, then creates the
+`v<version>` tag and prerelease with **only the playable ZIP** if
+every check passes. Subsequent pushes with the same VERSION do not
+publish duplicate releases. Explicit `v*` tags remain supported:
 
 ```sh
 git switch main
 git pull --ff-only
-git tag v0.3.0-alpha
-git push origin v0.3.0-alpha
+git tag v0.4.1-alpha
+git push origin v0.4.1-alpha
 ```
 
-Regular pushes and pull requests upload downloadable Actions artifacts but **do not** create GitHub Releases. A version-tagged release fails closed if either the gameplay tests or device build fail. The host simulation does not replace testing on physical Q2 hardware.
+Pull requests upload downloadable test artifacts without publishing releases.
+An alpha release is not considered physically validated until checked on a
+real Q2. A release fails closed if the gameplay tests or device build fail.
 
 ### Trying the experimental MIPS engine build
 
