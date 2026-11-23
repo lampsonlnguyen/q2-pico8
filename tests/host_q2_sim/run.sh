@@ -51,7 +51,20 @@ reset_sd
 
 # --- 1. library: Cover Flow browsing, menu, Return leaves ---
 run library library.txt || { echo "FAIL: library"; fail=1; }
+need library "q2-pico8 startup: first framebuffer frame submitted" "startup frame never presented"
 need library "library: 7 carts" "library did not list the 7 carts"
+# A successful host-sim exit alone would miss a blank first frame.
+# Check the actual first PNG so the black-screen regression is visible in CI.
+python3 - "$OUTBASE/library/frames/frame_0001.png" <<'PY' || fail=1
+from PIL import Image
+import sys
+frame = Image.open(sys.argv[1]).convert("RGB")
+visible = sum(1 for r,g,b in frame.getdata() if r+g+b > 75)
+if visible < 300:
+    print(f"FAIL: startup framebuffer essentially black ({visible} visible pixels)")
+    sys.exit(1)
+print(f"ok   startup frame visibly painted ({visible} pixels)")
+PY
 need library "library: selected 1 " "wheel did not move the selection"
 need library "library: selected 2 demo.p8" "a tap on a side cover did not select it"
 need library "library: exit" "Return did not leave the library"
