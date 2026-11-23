@@ -16,17 +16,24 @@
 
 #include "host.h"
 #include "hostVmShared.h"
+#include "vm.h"
 #include "q2_platform.h"
 #include "cart_validate.h"
+#include "fake08_session.h"
+#include "app.h"
 
 /* Upstream Cart parser + z8lua compiler, for q2_cart_lua_ok() below. */
 #include "cart.h"
 #include "lua.h"
 #include "lauxlib.h"
 
+Vm *q2_session_vm;
+int q2_session_end;
+
 namespace {
-constexpr const char *cart_dir = "/mnt/mmc/.pico8/carts";
-constexpr const char *data_dir = "/mnt/mmc/.pico8/";
+/* FAKE-08's pause menu exits load its own BIOS carts; the build relabels
+ * them (tools/fake08-overlay.sh) and leaving_cart() below turns them into
+ * "back to the library" and "leave the app". */
 /* FAKE-08's synth runs at 22050 Hz stereo. One video frame's worth of
  * audio is 22050/fps frames: 735 at 30 FPS, 367/368 alternating at
  * 60 FPS. The buffer holds 2048 frames, so any fps >= 11 fits; lower
@@ -58,30 +65,31 @@ bool ends_with(const std::string &s, const char *suffix) {
 Host::Host(int windowWidth, int windowHeight) {
     (void)windowWidth;
     (void)windowHeight;
-    _cartDirectory = cart_dir;
-    _logFilePrefix = data_dir;
+    _cartDirectory = app::cart_dir();
+    _logFilePrefix = app::data_dir() + "/";
 #ifdef Q2_FAKE08_SMOKE
     _cartDirectory = "tests";
     _logFilePrefix = "/tmp/"; /* Host test uses an authored cartridge, not the SD card. */
 #endif
-    _customBiosLua = "cartpath = \"/mnt/mmc/.pico8/carts/\"\n"
+    _customBiosLua = "cartpath = \"" + app::cart_dir() + "/\"\n"
                      "selectbtn = \"o\"\n"
                      "pausebtn = \"back\"\n";
 }
 
+/* The platform stays open for the whole session (library and carts); the
+ * audio device opens with the first cart and stays open between carts. */
 void Host::oneTimeSetup(Audio *audio) {
     (void)audio;
-    opened = q2_open() == 0;
-    stopped = !opened;
-    if (opened) q2_audio_open(); /* -1 when ALSA is missing: silent mode. */
+    opened = true;
+    stopped = false;
+    q2_session_end = Q2_END_NONE;
+    if (!q2_audio_available()) q2_audio_open(); /* -1 when ALSA is missing: silent mode. */
     audio_credit = 0;
     audio_frames = 0;
     last_frame = q2_millis();
-    mkdir("/mnt/mmc/.pico8/cdata", 0755);
+    mkdir((app::data_dir() + "/cdata").c_str(), 0755);
 }
 void Host::oneTimeCleanup() {
-    q2_audio_close();
-    if(opened)q2_close();
     opened = false;
 }
 void Host::setTargetFps(int fps) {
@@ -96,15 +104,22 @@ void Host::waitForTargetFps() {
     if(elapsed<target_ms)usleep((target_ms-elapsed)*1000u);
     last_frame=q2_millis();
 }
+static bool leaving_cart() {
+    if(!q2_session_vm||q2_session_end!=Q2_END_NONE)return q2_session_end!=Q2_END_NONE;
+    std::string name=q2_session_vm->CurrentCartFilename();
+    if(name=="__FAKE08-DEFAULT.p8")q2_session_end=Q2_END_LIBRARY;
+    else if(name=="__FAKE08-SETTINGS.p8")q2_session_end=Q2_END_QUIT;
+    return q2_session_end!=Q2_END_NONE;
+}
 bool Host::shouldQuit() { return stopped; }
-bool Host::shouldRunMainLoop() { return !stopped; }
+bool Host::shouldRunMainLoop() { return !stopped && !leaving_cart(); }
 void Host::changeStretch() {}
 void Host::forceStretch(StretchOption option) {(void)option;}
 double Host::deltaTMs() { return static_cast<double>(q2_millis()-last_frame); }
 
 InputState_t Host::scanInput() {
     const q2_input q=q2_read_input();
-    if(q.quit)stopped=true;
+    if(q.quit){stopped=true;q2_session_end=Q2_END_QUIT;}
     uint8_t down=0,held=0;
     if(q.pressed&Q2_LEFT)down|=P8_KEY_LEFT;
     if(q.pressed&Q2_RIGHT)down|=P8_KEY_RIGHT;
@@ -125,7 +140,7 @@ InputState_t Host::scanInput() {
 }
 void Host::drawFrame(uint8_t *pixels,uint8_t *screenPaletteMap,uint8_t drawMode) {
     (void)drawMode;
-    if(!opened||!pixels||!screenPaletteMap)return;
+    if(!opened||!pixels||!screenPaletteMap||leaving_cart())return;
     uint32_t colors[144]={};
     Color *pal=GetPaletteColors();
     for(int i=0;i<144;i++)
@@ -186,7 +201,7 @@ std::vector<std::string> Host::listdirs() {
     return names;
 }
 void Host::overrideLogFilePrefix(const char *path){
-    _logFilePrefix=path?path:data_dir;
+    _logFilePrefix=path?path:app::data_dir()+"/";
 }
 const char *Host::logFilePrefix(){return _logFilePrefix.c_str();}
 std::string Host::customBiosLua(){return _customBiosLua;}
