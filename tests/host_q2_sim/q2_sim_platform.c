@@ -31,12 +31,6 @@
  *  - Framebuffer: a 375x320 in-memory buffer dumped to PNG on every
  *    present, with a per-frame timestamp and hash for pacing analysis.
  *
- * It also supplies sc(), the syscall shim that src/cart_browser.c needs:
- * the real cart_browser.c is compiled unchanged on the host, and sc()
- * implements only the three calls it makes — SYS_OPEN (4005),
- * SYS_CLOSE (4006) and SYS_GETDENTS64 (4219) — on top of POSIX
- * opendir/readdir. No other device code is involved.
- *
  * Environment (all optional):
  *   Q2_SIM_OUTDIR     output dir for frames/*.png, audio.wav, stats.json
  *                       (default: build/host-sim-out)
@@ -472,69 +466,6 @@ q2_input q2_read_input(void) {
         strcpy(exit_reason, sim_full ? "return-centre" : "double-back");
     }
     return in;
-}
-
-/* --- sc() shim for the real src/cart_browser.c --------------------------
- * Only the calls cart_browser.c makes: SYS_OPEN 4005, SYS_CLOSE 4006,
- * SYS_GETDENTS64 4219. Fds are opaque slots; getdents fills
- * linux_dirent64 entries from POSIX readdir. */
-enum { SIM_SYS_OPEN = 4005, SIM_SYS_CLOSE = 4006, SIM_SYS_GETDENTS64 = 4219 };
-typedef struct { int used; DIR *dir; } sim_dirent_slot;
-static sim_dirent_slot dir_slots[16];
-
-long sc(long n, long a, long b, long c, long d, long e, long f) {
-    (void)d; (void)e; (void)f;
-    if (n == SIM_SYS_OPEN) {
-        const char *path = (const char *)a;
-        for (int i = 0; i < 16; ++i) {
-            if (dir_slots[i].used) continue;
-            DIR *dir = opendir(path);
-            if (!dir) return -1;
-            dir_slots[i].used = 1;
-            dir_slots[i].dir = dir;
-            return 100 + i;
-        }
-        return -1;
-    }
-    if (n == SIM_SYS_CLOSE) {
-        int fd = (int)a;
-        int i = fd - 100;
-        if (i < 0 || i >= 16 || !dir_slots[i].used) return -1;
-        closedir(dir_slots[i].dir);
-        dir_slots[i].used = 0;
-        dir_slots[i].dir = NULL;
-        return 0;
-    }
-    if (n == SIM_SYS_GETDENTS64) {
-        int fd = (int)a;
-        int i = fd - 100;
-        if (i < 0 || i >= 16 || !dir_slots[i].used) return -1;
-        char *buf = (char *)b;
-        long size = c;
-        long used = 0;
-        struct dirent *de;
-        while ((de = readdir(dir_slots[i].dir)) != NULL) {
-            unsigned name_len = (unsigned)strlen(de->d_name);
-            unsigned reclen = (19u + name_len + 1u + 7u) & ~7u;
-            if (used + (long)reclen > size) {
-                /* Not expected for a 2048-byte buffer and short names;
-                 * rewind is unavailable via readdir, so report what we
-                 * have and let the caller loop again — the entry is
-                 * lost, which the browser tolerates (max 64 carts). */
-                break;
-            }
-            char *dst = buf + used;
-            memset(dst, 0, reclen);
-            dst[16] = (char)(reclen & 0xff);
-            dst[17] = (char)((reclen >> 8) & 0xff);
-            dst[18] = (char)de->d_type;
-            memcpy(dst + 19, de->d_name, name_len + 1);
-            used += (long)reclen;
-        }
-        return used;
-    }
-    (void)c;
-    return -1;
 }
 
 /* The device-only argument hook; game mode switches the real mapper. */

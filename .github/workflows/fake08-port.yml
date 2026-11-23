@@ -29,26 +29,13 @@ jobs:
           test -z "$(gofmt -l $(ls *.go))"
           go vet -mod=vendor .
           go test -mod=vendor .
-      - name: Verify existing freestanding Q2 browser
+      - name: Check scripts and the MIPS platform layer
         run: |
           bash -n tools/build-fake08.sh
           bash -n tools/test-fake08-link.sh
-          make check
           clang --target=mipsel-linux-gnu -march=mips32r2 -mabi=32 \
             -mfp64 -mnan=2008 -ffreestanding -std=c11 -Wall -Wextra -Werror \
             -DQ2_GLIBC -Isrc -fsyntax-only src/q2_platform.c src/q2_input.c
-      - name: Verify installable browser-preview archive
-        run: |
-          unzip -t dist/q2-femto8-browser-preview.zip
-          unzip -Z1 dist/q2-femto8-browser-preview.zip | grep -Fx '.pico8/q2app'
-          unzip -Z1 dist/q2-femto8-browser-preview.zip | grep -Fx '.pico8/q2-pico8'
-          unzip -p dist/q2-femto8-browser-preview.zip .pico8/q2app | grep -Fx 'game=1'
-          file dist/.pico8/q2-pico8 | grep -E 'ELF 32-bit LSB.*MIPS'
-      - uses: actions/upload-artifact@v6
-        with:
-          name: q2-pico8-browser-preview
-          path: dist/q2-femto8-browser-preview.zip
-          if-no-files-found: error
       - name: Get pinned FAKE-08 upstream sources
         run: |
           git init -q /tmp/fake-08
@@ -245,10 +232,6 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          # Never publish the freestanding browser preview alongside the
-          # playable player: both archives install under /.pico8/ and
-          # extracting the preview can overwrite the working executable.
-          # Keep preview as a CI-only artifact for developer testing.
           assets=(dist/q2-pico8-playable-experimental.zip)
           for asset in "${assets[@]}"; do test -s "$asset"; done
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

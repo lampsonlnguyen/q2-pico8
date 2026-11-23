@@ -508,7 +508,7 @@ void q2_present_fake08(const uint8_t *pixels,
 }
 
 #ifdef Q2_GLIBC
-enum { SYS_WRITE=4004, SYS_FSYNC=4118, O_WRONLY_MIPS=1, O_APPEND_MIPS=0x8, O_CREAT_MIPS=0x100 };
+enum { SYS_WRITE=4004, SYS_FSYNC=4118, O_WRONLY_MIPS=1, O_APPEND_MIPS=0x8, O_CREAT_MIPS=0x100, O_TRUNC_MIPS=0x200 };
 static void band(q2_pixel *base,unsigned page_row,unsigned pitch,unsigned stage,uint32_t rgb) {
     unsigned top=8+20*stage;
     if(top+16>Q2_HEIGHT)return;
@@ -518,8 +518,9 @@ static void band(q2_pixel *base,unsigned page_row,unsigned pitch,unsigned stage,
     }
 }
 void q2_debug_stage(unsigned stage,uint32_t rgb,const char *what) {
+    /* Stage 1 starts the file afresh, so it holds this launch only. */
     long fd=sc(SYS_OPEN,(long)"/mnt/mmc/.pico8/startup.txt",
-               O_WRONLY_MIPS|O_APPEND_MIPS|O_CREAT_MIPS|O_CLOEXEC,0644,0,0,0);
+               O_WRONLY_MIPS|(stage==1?O_TRUNC_MIPS:O_APPEND_MIPS)|O_CREAT_MIPS|O_CLOEXEC,0644,0,0,0);
     if(fd>=0){
         char line[160];
         unsigned n=0;

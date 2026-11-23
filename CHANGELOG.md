@@ -1,17 +1,25 @@
 # Changelog
 
-## Unreleased — startup diagnostics for the black screen
+## v0.4.2-alpha — starts on the Q2 again
 
-- Startup follows v0.3.0's order again: the display opens before FAKE-08's
-  logger or any library work.
-- FAKE-08's logger no longer echoes to whatever stdout Q2 Pod's process
-  left behind (`/dev/null` instead).
-- Each startup stage draws a coloured band on screen and appends an
-  fsync'd line to `.pico8/startup.txt`, so a hang shows where it stopped
-  even after a forced power-off: 1 red main entered, 2 orange stdout and
-  paths, 3 yellow display open (dark purple: display failed), 4 green
-  pico.log open, 5 blue first frame, 6 lavender library, 7 first Cover Flow
-  frame (file only).
+- **Fixes the black screen with no `pico.log` in v0.4.0/v0.4.1:** the Q2
+  firmware's glibc 2.28 loader does not run the executable's
+  `.init_array`, so C++ globals added with the library were never
+  constructed and the app crashed in `app::set_exe` before drawing (#6).
+  `main()` now runs the init array itself, once.
+- **Touch controls laid out like a handheld:** a D-pad cross (corners
+  press diagonals) on the left, O and X on the right, pause at the top
+  right, and a pad icon at the top left that hides or shows them; also in
+  the library menu as **Touch controls**, remembered on the card (#7).
+- **Startup diagnostics (#8):** the display opens before FAKE-08's logger
+  or any library work (v0.3.0's order), the logger's stdout echo goes to
+  `/dev/null`, and each startup stage flashes a coloured band and writes an
+  fsync'd line to `.pico8/startup.txt` (latest launch only): 1 red main
+  entered, 2 orange stdout and paths, 3 yellow display open (dark purple:
+  failed), 4 green `pico.log` open, 5 blue first frame, 6 lavender library,
+  7 first Cover Flow frame.
+- **One build:** the old cart-list-only browser preview, which installed
+  over the player's executable, is gone, with the Femto-8 prototype files.
 
 ## v0.4.1-alpha — black-screen recovery and startup diagnostics
 
