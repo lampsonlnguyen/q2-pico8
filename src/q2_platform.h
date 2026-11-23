@@ -6,6 +6,9 @@
 extern "C" {
 #endif
 enum { Q2_WIDTH=375, Q2_HEIGHT=320, P8_WIDTH=128, P8_HEIGHT=128 };
+enum { Q2_GAME_SCALE=2, Q2_GAME_WIDTH=P8_WIDTH*Q2_GAME_SCALE,
+       Q2_GAME_HEIGHT=P8_HEIGHT*Q2_GAME_SCALE,
+       Q2_GAME_X=(Q2_WIDTH-Q2_GAME_WIDTH)/2, Q2_GAME_Y=(Q2_HEIGHT-Q2_GAME_HEIGHT)/2 };
 typedef uint32_t q2_pixel;
 /* touch: 1 while a finger is down, at (touch_x, touch_y) in the 375x320
  * view; touch_began/touch_ended latch a down/up since the last read, and
@@ -14,6 +17,8 @@ typedef struct {
     unsigned buttons; unsigned pressed; unsigned quit; int wheel;
     int touch, touch_x, touch_y, touch_start_x, touch_start_y;
     unsigned touch_began, touch_ended;
+    int mouse_x, mouse_y; /* PICO-8 coordinates, 0..127. */
+    unsigned mouse_left; /* Held or tapped since the last snapshot. */
 } q2_input;
 enum { Q2_LEFT=1, Q2_RIGHT=2, Q2_UP=4, Q2_DOWN=8, Q2_O=16, Q2_X=32, Q2_PAUSE=64 };
 /* Initialize framebuffer + Q2 Pod card input socket. Returns 0 on success. */

@@ -106,6 +106,10 @@ audio-source switching require firmware with both `audio2` and `gameview`.
 After switching firmware, re-enter Library → Games after the first launch
 so Q2 Pod rereads the audio mode.
 
+In carts with mouse support, tap the game picture for a left click or drag
+to move with the button held. Visible overlay controls take priority. Hide the
+controls with the pad icon to click in the areas they occupy.
+
 The player saves cart data and closes the sound on its way out.
 
 ## Get Games (itch.io)

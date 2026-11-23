@@ -120,7 +120,10 @@ mkdir -p "$stage/.pico8/licenses"
 cp "$src/LICENSE.MD" "$stage/.pico8/FAKE-08-LICENSE.md"
 cp src/FONT-LICENSE "$stage/.pico8/licenses/Liberation-Sans-OFL.txt"
 cp NOTICE.md "$stage/.pico8/licenses/NOTICE.md"
-members=(.pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md
+cp assets/icon.png assets/icon-40.png "$stage/.pico8/"
+cp assets/Lucide-ISC.txt "$stage/.pico8/licenses/"
+members=(.pico8/icon.png .pico8/icon-40.png .pico8/licenses/Lucide-ISC.txt
+         .pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md
          .pico8/licenses/Liberation-Sans-OFL.txt .pico8/licenses/NOTICE.md)
 
 # itch.io helper for Get Games (Go, cross-built for the Q2's MIPS soft-float

@@ -354,7 +354,8 @@ InputState_t Host::scanInput() {
     if(q.buttons&Q2_X)held|=P8_KEY_X;
     held|=down;
     /* Preserve button taps that began and ended within one frame. */
-    return InputState_t {down,held,0,0,0,false,std::string()};
+    return InputState_t {down,held,static_cast<int16_t>(q.mouse_x),static_cast<int16_t>(q.mouse_y),
+                         static_cast<uint8_t>(q.mouse_left),false,std::string()};
 }
 void Host::drawFrame(uint8_t *pixels,uint8_t *screenPaletteMap,uint8_t drawMode) {
     (void)drawMode;

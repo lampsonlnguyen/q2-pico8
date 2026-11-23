@@ -39,6 +39,10 @@ ld.lld -m elf32ltsmip -e __start --dynamic-linker /lib/ld-linux-mipsn8.so.1 --im
 sed 's/^name=.*/name=PICO-8/' q2app > "$stage/.pico8/q2app"
 : > "$stage/.pico8/carts/.keep"
 cp "$src/LICENSE.MD" "$stage/.pico8/FAKE-08-LICENSE.md"
+mkdir -p "$stage/.pico8/licenses"
+cp assets/icon.png assets/icon-40.png "$stage/.pico8/"
+cp assets/Lucide-ISC.txt "$stage/.pico8/licenses/"
 # Get Games helper and notices: see tools/build-fake08.sh, which CI packages.
-(cd "$stage" && zip -q -FS ../q2-pico8.zip .pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md)
+(cd "$stage" && zip -q -FS ../q2-pico8.zip .pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md \
+  .pico8/icon.png .pico8/icon-40.png .pico8/licenses/Lucide-ISC.txt)
 file "$stage/.pico8/q2-pico8"; echo "Created dist/q2-pico8.zip"

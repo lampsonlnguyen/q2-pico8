@@ -456,12 +456,12 @@ static void present_mapped(const uint8_t *pixels,const uint8_t *map,
     q2_pixel *dest=memory+page*stride;
     for(unsigned x=0;x<Q2_WIDTH;++x) {
         q2_pixel *col=dest+x*stride;
-        int sx=((int)x-(Q2_WIDTH-256)/2)/2;
+        int sx=((int)x-Q2_GAME_X)/Q2_GAME_SCALE;
         for(unsigned y=0;y<Q2_HEIGHT;++y) {
-            int sy=((int)y-(Q2_HEIGHT-256)/2)/2;
+            int sy=((int)y-Q2_GAME_Y)/Q2_GAME_SCALE;
             uint32_t argb=0xff000000u;
-            if(x>=(Q2_WIDTH-256)/2 && x<(Q2_WIDTH-256)/2+256 &&
-               y>=(Q2_HEIGHT-256)/2 && y<(Q2_HEIGHT-256)/2+256) {
+            if(x>=Q2_GAME_X && x<Q2_GAME_X+Q2_GAME_WIDTH &&
+               y>=Q2_GAME_Y && y<Q2_GAME_Y+Q2_GAME_HEIGHT) {
                 unsigned off=(unsigned)sy*64u+(unsigned)sx/2u;
                 uint8_t data=pixels[off];
                 unsigned color=(sx&1)?(data>>4):(data&15u);

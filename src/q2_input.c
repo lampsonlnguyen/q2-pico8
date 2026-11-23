@@ -47,11 +47,13 @@ static unsigned full, game, physical, touch_key;
 static unsigned return_down, return_back, return_at, back_at, back_pending;
 static unsigned centre_down, centre_edge;
 static unsigned wheel_bit, wheel_until;
+static unsigned mouse_touch, mouse_tap;
 static q2_input out;
 
 static void clear_edges(void) {
     out.pressed = 0;
     out.wheel = 0;
+    mouse_tap = 0;
     centre_edge = 0;
     out.touch_began = 0;
     out.touch_ended = 0;
@@ -60,6 +62,8 @@ void q2_input_reset(void) {
     physical = touch_key = wheel_bit = 0;
     return_down = return_back = return_at = back_at = back_pending = centre_down = 0;
     out.buttons = 0; out.quit = 0;
+    mouse_touch = 0;
+    out.mouse_x = out.mouse_y = 0;
     out.touch = out.touch_x = out.touch_y = 0;
     out.touch_start_x = out.touch_start_y = 0;
     clear_edges();
@@ -69,7 +73,8 @@ int q2_input_full(void) { return (int)full; }
 void q2_input_set_game(int on) {
     game = on != 0;
     physical = touch_key = wheel_bit = 0;
-    return_back = 0;
+    return_back = mouse_touch = 0;
+    out.mouse_x = out.mouse_y = 0;
     out.buttons = 0;
     out.touch = 0;
     clear_edges();
@@ -204,6 +209,18 @@ int q2_overlay_take_changed(void) {
     return (int)was;
 }
 
+static int mouse_coordinate(int offset, int limit) {
+    int coord = offset / Q2_GAME_SCALE;
+    if (coord < 0) return 0;
+    if (coord >= limit) return limit - 1;
+    return coord;
+}
+
+static void move_mouse(int x, int y) {
+    out.mouse_x = mouse_coordinate(x - Q2_GAME_X, P8_WIDTH);
+    out.mouse_y = mouse_coordinate(y - Q2_GAME_Y, P8_HEIGHT);
+}
+
 void q2_input_touch(char action, int x, int y, unsigned now) {
     (void)now;
     if (!game && (centre_down || centre_edge)) return;
@@ -212,10 +229,11 @@ void q2_input_touch(char action, int x, int y, unsigned now) {
         if (x >= 0 && y >= 0) {
             out.touch_x = x;
             out.touch_y = y;
+            if (mouse_touch) move_mouse(x, y);
         }
         out.touch = 0;
         out.touch_ended = 1;
-        touch_key = 0;
+        touch_key = mouse_touch = 0;
         return;
     }
     if (action != 'd' && (action != 'm' || !out.touch)) return;
@@ -230,6 +248,20 @@ void q2_input_touch(char action, int x, int y, unsigned now) {
     }
     if (!game) return;
     unsigned key = control_hit(x, y);
+    if (action == 'd') {
+        /* The initial touch decides whether this gesture belongs to the cart
+         * or the overlay. A mouse drag can cross a control without pressing it. */
+        mouse_touch = !key && x >= Q2_GAME_X && x < Q2_GAME_X + Q2_GAME_WIDTH &&
+                      y >= Q2_GAME_Y && y < Q2_GAME_Y + Q2_GAME_HEIGHT;
+        if (mouse_touch) {
+            mouse_tap = 1;
+            touch_key = 0;
+        }
+    }
+    if (mouse_touch) {
+        move_mouse(x, y);
+        return;
+    }
     if (key == Q2_TOGGLE) {
         /* Toggles on the touch that lands on it, never by sliding over it. */
         if (action == 'd') {
@@ -249,6 +281,7 @@ q2_input q2_input_take(unsigned now) {
     if (return_down && now - return_at >= Q2_QUIT_HOLD_MS) out.quit = 1;
     if (wheel_bit && (int)(now - wheel_until) >= 0) wheel_bit = 0;
     out.buttons = physical | touch_key | wheel_bit;
+    out.mouse_left = mouse_touch || mouse_tap;
     q2_input snapshot = out;
     clear_edges();
     return snapshot;
