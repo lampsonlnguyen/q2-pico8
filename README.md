@@ -8,9 +8,12 @@ a gameplay test to confirm sound actually comes out of the device.
 
 ## Install the experimental player
 
-1. Open [Q2 PICO-8 bridge runs](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml)
-   and download the **q2-pico8-playable-experimental** artifact from a successful
-   run. Unwrap the artifact to get the install ZIP of the same name.
+1. Download `q2-pico8-playable-experimental.zip` from the
+   [latest release](https://github.com/lampsonlnguyen/q2-pico8/releases/latest).
+   (v0.2.0-alpha and earlier crash on every cart load; use v0.3.0-alpha or
+   later.) Builds from unreleased commits are the
+   **q2-pico8-playable-experimental** artifact of a successful
+   [Q2 PICO-8 bridge run](https://github.com/lampsonlnguyen/q2-pico8/actions/workflows/fake08-port.yml).
 2. Extract that install ZIP to the root of the microSD card. If you already
    installed the browser preview, replace `.pico8/q2app` and
    `.pico8/q2-pico8` and keep your existing carts.
