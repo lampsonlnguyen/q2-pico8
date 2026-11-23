@@ -512,6 +512,56 @@ void q2_present_fake08(const uint8_t *pixels,
     present_mapped(pixels,screen_map,colors);
 }
 
+#ifdef Q2_GLIBC
+enum { SYS_WRITE=4004, SYS_FSYNC=4118, O_WRONLY_MIPS=1, O_APPEND_MIPS=0x8, O_CREAT_MIPS=0x100 };
+static void band(q2_pixel *base,unsigned page_row,unsigned pitch,unsigned stage,uint32_t rgb) {
+    unsigned top=8+20*stage;
+    if(top+16>Q2_HEIGHT)return;
+    for(unsigned x=0;x<Q2_WIDTH;++x){
+        q2_pixel *col=base+(page_row+x)*pitch;
+        for(unsigned y=top;y<top+16;++y)col[Q2_HEIGHT-1-y]=0xff000000u|rgb;
+    }
+}
+void q2_debug_stage(unsigned stage,uint32_t rgb,const char *what) {
+    long fd=sc(SYS_OPEN,(long)"/mnt/mmc/.pico8/startup.txt",
+               O_WRONLY_MIPS|O_APPEND_MIPS|O_CREAT_MIPS|O_CLOEXEC,0644,0,0,0);
+    if(fd>=0){
+        char line[160];
+        unsigned n=0;
+        const char *head="stage ";
+        while(*head)line[n++]=*head++;
+        if(stage>=10)line[n++]=(char)('0'+stage/10);
+        line[n++]=(char)('0'+stage%10);
+        line[n++]=':';line[n++]=' ';
+        while(*what&&n<sizeof line-1)line[n++]=*what++;
+        line[n++]='\n';
+        sc(SYS_WRITE,fd,(long)line,n,0,0,0);
+        sc(SYS_FSYNC,fd,0,0,0,0,0);
+        sc(SYS_CLOSE,fd,0,0,0,0,0);
+    }
+    if(memory){
+        /* Mapped by q2_open: draw on the page being shown. */
+        band(memory,visible,stride,stage,rgb);
+        return;
+    }
+    unsigned v[40],f[17];
+    long dev=sc(SYS_OPEN,(long)"/dev/fb0",O_RDWR|O_CLOEXEC,0,0,0,0);
+    if(dev<0)return;
+    if(!sc(SYS_IOCTL,dev,FB_VSCREEN,(long)v,0,0,0)&&!sc(SYS_IOCTL,dev,FB_FSCREEN,(long)f,0,0,0)&&
+       v[0]==Q2_HEIGHT&&v[1]==Q2_WIDTH&&v[6]==32&&f[11]>=Q2_HEIGHT*4&&
+       (unsigned long)(v[5]+Q2_WIDTH)*f[11]<=f[5]){
+        long at=sc(SYS_MMAP,0,(long)f[5],3,1,dev,0);
+        if(!(at<0&&at>=-4095)){
+            band((q2_pixel*)at,v[5],f[11]/4,stage,rgb);
+            sc(SYS_MUNMAP,at,(long)f[5],0,0,0,0);
+        }
+    }
+    sc(SYS_CLOSE,dev,0,0,0,0,0);
+}
+#else
+void q2_debug_stage(unsigned stage,uint32_t rgb,const char *what){(void)stage;(void)rgb;(void)what;}
+#endif
+
 void q2_close(void) {
     q2_audio_close();
 #ifdef Q2_GLIBC
