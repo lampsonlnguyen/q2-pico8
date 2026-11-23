@@ -315,7 +315,7 @@ static int gpio_code(unsigned code) {
  * the launcher could leave a fully black screen. Keep the exact stage in the
  * SD-card pico.log (stderr is redirected there by Logger_Initialize). */
 #ifdef Q2_GLIBC
-#define Q2_OPEN_ERROR(message) do { q2_log("q2-pico8: " message "\\n"); goto error; } while(0)
+#define Q2_OPEN_ERROR(message) do { q2_log("q2-pico8: " message "\n"); goto error; } while(0)
 #else
 #define Q2_OPEN_ERROR(message) goto error
 #endif
