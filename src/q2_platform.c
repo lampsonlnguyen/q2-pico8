@@ -12,6 +12,7 @@
  * file already does for everything else.
  */
 #include "q2_platform.h"
+#include "q2_input.h"
 long sc(long n,long a,long b,long c,long d,long e,long f);
 #ifndef Q2_GLIBC
 /* Clang may lower fixed-size struct initialization to memcpy. */
@@ -44,26 +45,11 @@ enum { SYS_CLOSE=4006, SYS_OPEN=4005, SYS_UNLINK=4010, SYS_IOCTL=4054,
 static int fb=-1, sock=-1;
 static unsigned var[40],fix[17],stride,front,visible,rows,can_pan;
 static q2_pixel *memory;
-static q2_input input_state;
 #ifdef Q2_GLIBC
-static unsigned physical_buttons, touch_button, back_at, back_pending;
-static unsigned game_mode, gameview, wheel_bit, wheel_until;
-
-enum { CONTROL_SIZE=32, CONTROL_X_LEFT=12, CONTROL_X_RIGHT=331 };
-static const struct {
-    int x, y;
-    unsigned key;
-    uint8_t glyph[7];
-} controls[] = {
-    {CONTROL_X_LEFT, 70, Q2_UP,    {8,28,62,8,8,8,8}},
-    {CONTROL_X_LEFT, 120,Q2_LEFT,  {0,8,16,62,16,8,0}},
-    {CONTROL_X_LEFT, 170,Q2_RIGHT, {0,8,4,62,4,8,0}},
-    {CONTROL_X_LEFT, 220,Q2_DOWN,  {8,8,8,8,62,28,8}},
-    {CONTROL_X_RIGHT,120,Q2_O,     {0,28,34,34,34,28,0}},
-    {CONTROL_X_RIGHT,170,Q2_X,     {0,34,20,8,20,34,0}},
-    {CONTROL_X_RIGHT,220,Q2_PAUSE, {0,62,0,62,0,62,0}},   /* MENU: PICO-8's pause menu */
-};
+static unsigned gameview;
+static int keys=-1;   /* md-gpio-keys, grabbed when the firmware lacks gameview */
 #endif
+static uint32_t canvas[Q2_WIDTH*Q2_HEIGHT];
 
 /* --- ALSA audio (Q2_GLIBC only) ---------------------------------------- */
 /* Only the entry points the player needs. The numeric constants are the
@@ -282,11 +268,52 @@ unsigned q2_millis(void) {
     return (unsigned)ts[0]*1000u+(unsigned)ts[1]/1000000u;
 }
 
-int q2_open(void) {
-    input_state=(q2_input){0};
 #ifdef Q2_GLIBC
-    physical_buttons=touch_button=back_pending=0;
-    wheel_bit=0;
+/* Pocket Boy's approach on firmware without gameview: grab the Q2's GPIO
+ * keys so Return, Play/Pause, Previous, Next and Centre all reach the app.
+ * Q2 Pod then no longer sees them (its Return-hold exit included), so the
+ * app ends itself on Return + Centre held, as gameview firmware does.
+ * Closing the descriptor, or the process ending, releases the grab. */
+enum { SYS_READ=4003, O_NONBLOCK_MIPS=0x80,
+       EVIOCGNAME_80=0x40504506,  /* _IOC(_IOC_READ,'E',0x06,80) on MIPS */
+       EVIOCGRAB_MIPS=(int)0x80044590u /* _IOW('E',0x90,int) on MIPS */ };
+static void grab_buttons(void) {
+    char path[]="/dev/input/event00";
+    for(int i=0;i<32;++i){
+        unsigned n=16;
+        if(i>=10){path[n++]=(char)('0'+i/10);}
+        path[n++]=(char)('0'+i%10);
+        path[n]=0;
+        long fd=sc(SYS_OPEN,(long)path,O_NONBLOCK_MIPS|O_CLOEXEC,0,0,0,0);
+        if(fd<0)continue;
+        char name[80];
+        for(unsigned j=0;j<sizeof name;++j)name[j]=0;
+        if(sc(SYS_IOCTL,fd,EVIOCGNAME_80,(long)name,0,0,0)>=0&&
+           text_equal(name,"md-gpio-keys")&&
+           sc(SYS_IOCTL,fd,EVIOCGRAB_MIPS,1,0,0,0)==0){
+            keys=(int)fd;
+            return;
+        }
+        sc(SYS_CLOSE,fd,0,0,0,0,0);
+    }
+}
+/* md-gpio-keys Linux codes (KEY_UP, KEY_DOWN, KEY_PREVIOUSSONG,
+ * KEY_NEXTSONG, KEY_POWER) to Q2 Pod's card-app codes, as in Pocket Boy. */
+static int gpio_code(unsigned code) {
+    switch(code){
+    case 103: return Q2_KEY_RETURN;
+    case 108: return Q2_KEY_PLAY;
+    case 165: return Q2_KEY_PREVIOUS;
+    case 163: return Q2_KEY_NEXT;
+    case 116: return Q2_KEY_CENTRE;
+    }
+    return -1;
+}
+#endif
+
+int q2_open(void) {
+    q2_input_reset();
+#ifdef Q2_GLIBC
     {   /* gameview: firmware that forwards all five buttons and ends the game on
          * Return+Centre held, not on Return held (q2-pod docs/internals.md, Card games). */
         char caps[512];
@@ -322,6 +349,13 @@ int q2_open(void) {
     struct {unsigned short family;char path[108];}addr={1,SOCKET_PATH};
     sc(SYS_UNLINK,(long)SOCKET_PATH,0,0,0,0,0);
     if(sc(SYS_BIND,sock,(long)&addr,sizeof addr,0,0,0)) goto error;
+#ifdef Q2_GLIBC
+    if(!gameview&&keys<0)grab_buttons();
+    q2_input_set_full(gameview||keys>=0);
+    q2_log(gameview?"q2-pico8: buttons from Q2 Pod (gameview)\n":
+           keys>=0?"q2-pico8: GPIO buttons grabbed\n":
+           "q2-pico8: Q2 Pod 1.8 button fallback\n");
+#endif
     return 0;
 error:
     q2_close();
@@ -338,114 +372,46 @@ static int number(const char *str) {
     }
     return neg?-value:value;
 }
+static const char *next_field(const char *s) {
+    while(*s&&*s!=' ')++s;
+    while(*s==' ')++s;
+    return s;
+}
 
 q2_input q2_read_input(void) {
     char m[64]; long n;
-    input_state.pressed=0;
-    input_state.wheel=0;
+    unsigned now=q2_millis();
 #ifdef Q2_GLIBC
-    if(term_requested)input_state.quit=1;
+    if(term_requested)q2_input_quit();
+    struct { long sec, usec; unsigned short type, code; int value; } ev;
+    while(keys>=0&&sc(SYS_READ,keys,(long)&ev,sizeof ev,0,0,0)==(long)sizeof ev){
+        int code;
+        if(ev.type==1&&ev.value>=0&&ev.value<=1&&(code=gpio_code(ev.code))>=0)
+            q2_input_key(code,ev.value,now);
+    }
 #endif
     while(sock>=0&&(n=sc(SYS_RECV,sock,(long)m,sizeof m-1,MSG_DONTWAIT,0,0))>0) {
         m[n]=0;
         if(m[0]=='w'&&m[1]==' ') {
             /* Q2 Pod's travel rises anticlockwise (200 a turn); turned here so
              * clockwise, the Q2's "down/next", is positive and Right. */
-            int w=-number(m+2);
-            input_state.wheel+=w;
-            unsigned bit=w>0?Q2_RIGHT:w<0?Q2_LEFT:0;
-#ifdef Q2_GLIBC
-            if(game_mode&&bit) {
-                /* In a cart the wheel steers: Left or Right stays held while it
-                 * turns (and ~120 ms after), so btn() sees a held direction
-                 * instead of one-frame taps; btnp() gets the first edge. */
-                if(wheel_bit!=bit||(int)(q2_millis()-wheel_until)>0)input_state.pressed|=bit;
-                wheel_bit=bit;
-                unsigned hold=120u+(unsigned)(w<0?-w:w)*4u;
-                wheel_until=q2_millis()+(hold>300u?300u:hold);
-                continue;
-            }
-#endif
-            /* Menus: one brief press per wheel report. */
-            input_state.pressed|=bit;
+            q2_input_wheel(-number(m+2),now);
         } else if(n>=5&&m[0]=='k'&&m[1]==' '&&m[3]==' ') {
-            int code=number(m+4);
 #ifdef Q2_GLIBC
-            if(game_mode&&gameview) {
-                /* Pocket Boy's layout: Return, Play/Pause, Previous, Next are
-                 * Up, Down, Left, Right; Centre is O. */
-                unsigned bit=code==170?Q2_UP:code==171?Q2_DOWN:code==222?Q2_LEFT:
-                             code==223?Q2_RIGHT:code==218?Q2_O:0;
-                if(m[2]=='d'){input_state.pressed|=bit&~physical_buttons;physical_buttons|=bit;}
-                else if(m[2]=='u')physical_buttons&=~bit;
-                continue;
-            }
+            if(keys>=0)continue; /* grabbed: the GPIO device is the source */
 #endif
-            if(code==170&&m[2]=='u') {
-#ifdef Q2_GLIBC
-                unsigned now=q2_millis();
-                if(back_pending&&now-back_at<=500u)input_state.quit=1;
-                else input_state.pressed|=Q2_PAUSE;
-                back_pending=1;
-                back_at=now;
-#else
-                input_state.pressed|=Q2_PAUSE;
-#endif
-            } else {
-                unsigned bit=code==218?Q2_O:0;
-#ifdef Q2_GLIBC
-                if(code==222||code==172)bit=Q2_LEFT;
-                if(code==223||code==173)bit=Q2_RIGHT;
-                if(code==171)bit=Q2_X;
-                unsigned *held=&physical_buttons;
-#else
-                unsigned *held=&input_state.buttons;
-#endif
-                if(m[2]=='d'){
-                    input_state.pressed|=bit&~*held;
-                    *held|=bit;
-                }else if(m[2]=='u')*held&=~bit;
-            }
-        } else if(m[0]=='t'&&m[1]==' ') {
-#ifdef Q2_GLIBC
-            if(m[2]=='u'){
-                touch_button=0;
-            }else if(n>=6&&m[2]=='d'&&m[3]==' '){
-                int x=number(m+4);
-                const char *y=m+4;
-                while(*y&&*y!=' ')++y;
-                if(!*y)continue;
-                int py=number(y+1);
-                touch_button=0;
-                for(unsigned i=0;i<sizeof controls/sizeof controls[0];++i){
-                    if(x>=controls[i].x&&x<controls[i].x+CONTROL_SIZE&&
-                       py>=controls[i].y&&py<controls[i].y+CONTROL_SIZE){
-                        touch_button=controls[i].key;
-                        input_state.pressed|=touch_button;
-                        break;
-                    }
-                }
-            }
-#else
-            if(m[2]=='d')input_state.pressed|=Q2_O;
-#endif
+            if(m[2]=='d'||m[2]=='u')q2_input_key(number(m+4),m[2]=='d',now);
+        } else if(n>=3&&m[0]=='t'&&m[1]==' ') {
+            const char *x=m[2]&&m[3]==' '?m+4:m+3;
+            const char *y=next_field(x);
+            q2_input_touch(m[2],number(x),*y?number(y):0,now);
         }
     }
-#ifdef Q2_GLIBC
-    unsigned wheel_held=wheel_bit&&(int)(q2_millis()-wheel_until)<0?wheel_bit:0;
-    if(!wheel_held)wheel_bit=0;
-    input_state.buttons=physical_buttons|touch_button|wheel_held;
-#endif
-    return input_state;
+    return q2_input_take(now);
 }
 
 void q2_set_game_mode(int on) {
-#ifdef Q2_GLIBC
-    game_mode=on!=0;
-    physical_buttons=touch_button=back_pending=wheel_bit=0;
-#else
-    (void)on;
-#endif
+    q2_input_set_game(on);
 }
 
 static void copy_page(q2_pixel *dst,const q2_pixel *src) {
@@ -481,27 +447,46 @@ static void present_mapped(const uint8_t *pixels,const uint8_t *map,
             col[Q2_HEIGHT-1-y]=argb;
         }
     }
-#ifdef Q2_GLIBC
     if(map){
-        for(unsigned i=0;i<sizeof controls/sizeof controls[0];++i){
-            unsigned active=input_state.buttons&controls[i].key;
-            for(int x=0;x<CONTROL_SIZE;++x){
-                q2_pixel *col=dest+(controls[i].x+x)*stride;
-                for(int y=0;y<CONTROL_SIZE;++y){
+        unsigned held=q2_input_held();
+        for(unsigned i=0;i<q2_control_count();++i){
+            const q2_control *c=q2_control_at(i);
+            unsigned active=held&c->key;
+            for(int x=0;x<Q2_CONTROL_SIZE;++x){
+                q2_pixel *col=dest+(c->x+x)*stride;
+                for(int y=0;y<Q2_CONTROL_SIZE;++y){
                     unsigned ink=x>=9&&x<23&&y>=9&&y<23&&
-                        (controls[i].glyph[(y-9)/2]&(1u<<(6-(x-9)/2)));
-                    col[Q2_HEIGHT-1-controls[i].y-y]=ink?0xffeeeeeeu:
+                        (c->glyph[(y-9)/2]&(1u<<(6-(x-9)/2)));
+                    col[Q2_HEIGHT-1-c->y-y]=ink?0xffeeeeeeu:
                         active?0xff326977u:0xff263247u;
                 }
             }
         }
     }
-#endif
     if(can_pan){
         var[5]=page;
         if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0))visible=page;
         else {can_pan=0;copy_page(memory+visible*stride,dest);}
     }
+}
+static void flip(unsigned page,q2_pixel *dest) {
+    if(can_pan){
+        var[5]=page;
+        if(!sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0))visible=page;
+        else {can_pan=0;copy_page(memory+visible*stride,dest);}
+    }
+}
+uint32_t *q2_canvas(void) { return canvas; }
+void q2_present_canvas(void) {
+    if(!memory)return;
+    unsigned page=can_pan?(visible?0:Q2_WIDTH):visible;
+    q2_pixel *dest=memory+page*stride;
+    for(unsigned x=0;x<Q2_WIDTH;++x){
+        q2_pixel *col=dest+x*stride+(Q2_HEIGHT-1);
+        const uint32_t *src=canvas+x;
+        for(unsigned y=0;y<Q2_HEIGHT;++y,src+=Q2_WIDTH)col[-(int)y]=0xff000000u|*src;
+    }
+    flip(page,dest);
 }
 void q2_present(const uint8_t *pixels,const uint32_t palette[16]) {
     present_mapped(pixels,0,palette);
@@ -515,6 +500,9 @@ void q2_present_fake08(const uint8_t *pixels,
 
 void q2_close(void) {
     q2_audio_close();
+#ifdef Q2_GLIBC
+    if(keys>=0){sc(SYS_CLOSE,keys,0,0,0,0,0);keys=-1;} /* releases the grab */
+#endif
     if(sock>=0) {sc(SYS_CLOSE,sock,0,0,0,0,0);sock=-1;sc(SYS_UNLINK,(long)SOCKET_PATH,0,0,0,0,0);}
     if(memory) {
         if(visible!=front) {var[5]=front;sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0);}
