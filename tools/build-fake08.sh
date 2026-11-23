@@ -94,6 +94,18 @@ objects+=("$out/fake08_main.o")
 # moved into libc).
 "$cxx" "${flags[@]}" "${old_lib[@]}" -static-libstdc++ -Wl,--as-needed -Wl,--no-warn-mismatch -Wl,--gc-sections -L"$sysroot/lib" -o "$binary" "${objects[@]}" -lm -lpthread -ldl \
     -Wl,--no-as-needed -l:ld-linux-mipsn8.so.1
+# The static libstdc++ references __tls_get_addr, which is defined only in
+# ld.so, so the loader must be on the link line — but it must NOT stay a
+# DT_NEEDED entry. As a NEEDED, ld.so is loaded as a regular shared object
+# on top of its PT_INTERP role, so its dl-minimal malloc/realloc interpose
+# ahead of libc's and the first realloc of a non-last block aborts
+# (dl-minimal.c: realloc: Assertion `ptr == alloc_last_block' failed) in
+# the FAKE-08 Vm constructor, exit 127 ("It couldn't start"). Strip the
+# entry back out: the __tls_get_addr reference stays undefined in the
+# binary and resolves at runtime from the interpreter, exactly like
+# libc.so.6's own undefined reference to it. PT_INTERP is untouched.
+command -v patchelf >/dev/null || { echo "patchelf is required (apt install patchelf)" >&2; exit 2; }
+patchelf --remove-needed ld-linux-mipsn8.so.1 "$binary"
 # GCC's legacy-NaN startup archive can overwrite ELF NaN2008 e_flags.
 # This is an experimental ABI bridge, not proof of mixed-lib correctness.
 python3 tools/mark-mips-nan2008.py "$binary"
