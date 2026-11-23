@@ -14,8 +14,10 @@ Real (unchanged, host-compiled):
   and the synth.
 - `src/fake08_host.cpp` — the Host interface, audio-buffer fill, input
   translation, frame timing (`waitForTargetFps`), cart enumeration.
-- `src/cart_browser.c` — compiled unchanged; its MIPS `sc()` calls are
-  served by the sim platform's `getdents` shim (see below).
+- `src/fake08_main.cpp` and the library: Cover Flow (`library.cpp`,
+  `coverflow.cpp`, `covers.cpp`, `ui.cpp`), Get Games (`getgames.cpp`,
+  `itch.c`, running a stand-in helper) and the cart flow.
+- `src/q2_input.c` — the button, wheel and touch mapping the device uses.
 
 Simulated (host-only, in `q2_sim_platform.c`):
 - `/dev/fb0` → a 375×320 in-memory framebuffer, dumped to PNG per frame.
@@ -23,11 +25,13 @@ Simulated (host-only, in `q2_sim_platform.c`):
   `present_mapped()`: same 2× scaling, centring, rotated bottom-up
   storage, palette mapping (`map[color] & 0x8f`), same on-screen
   control overlay.
-- Input socket → a script file (`Q2_SIM_INPUT`, see `scripts/`), with
-  the same datagram semantics as the device: wheel synthesises brief
-  LEFT/RIGHT presses, key codes 218=O / 171=X / 222/172=LEFT /
-  223/173=RIGHT, Back (170) = PAUSE once, quit on a second press
-  within 500 ms, touch hits the same control rectangles.
+- Input socket and GPIO keys → a script file (`Q2_SIM_INPUT`, see
+  `scripts/`) of raw events (Q2 Pod key codes 170/171/222/223/218,
+  wheel travel, touch down/move/up) fed to `src/q2_input.c` as the
+  device feeds them. `Q2_SIM_FULL=1` (default) is all five buttons
+  (gameview or grabbed keys); `Q2_SIM_FULL=0` is Q2 Pod 1.8's fallback.
+- The native UI canvas (`q2_present_canvas`) is stored with the device's
+  rotation and dumped to PNG like game frames.
 - `q2_millis()` → real `CLOCK_MONOTONIC` time (the old smoke stub
   faked +34 ms per call, so it could not measure pacing).
 - ALSA → a WAV capture sink (`audio.wav`, 22050 Hz stereo s16) that
@@ -49,23 +53,27 @@ bash tests/host_q2_sim/run.sh [outbase]
 # outbase defaults to ~/workspace/q2-pico8-emu-test/host-sim
 ```
 
-`run.sh` stages a fake SD card at the real device path
-`/mnt/mmc/.pico8/carts` (a host directory, not firmware), builds the
-sim, then runs:
+`run.sh` stages a fake SD card in `<outbase>/sd` (passed to the player as
+`Q2_PICO8_DATA`, which replaces `/mnt/mmc/.pico8`), with the test carts and
+two `.p8.png` carts from `tests/make_png_cart.py`, builds the sim, then runs
+the real `src/fake08_main.cpp`:
 
-1. **browser** — wheel +1, Centre: verifies the picker lists carts,
-   selection moves, and O chooses the highlighted cart.
-2. **audio-30fps** (`tests/audio.p8`, `_update`, 120 frames) — pacing
-   + synth audio to WAV.
-3. **demo-30fps** (`tests/demo.p8`, 120 frames) — pacing, distinct
-   frames every ~33 ms.
-4. **update60-60fps** (`tests/update60.p8`, `_update60`, 120 frames) —
-   pacing, distinct frames every ~16.7 ms.
-5. **input-controls** (`tests/input.p8`, scripted keys/touch/pause/
-   double-Back, up to 600 frames) — proves input reaches the cart
-   (circle moves, colour changes, reset, pause menu, exit).
-6. **invalid-missing / invalid-corrupt** — missing cart must exit 2
-   with no frames; corrupt cart's exit is recorded as-is.
+1. **library** (`scripts/library.txt`) — Cover Flow: wheel, Previous, a tap
+   on a side cover, the menu, Return leaves.
+2. **play-return** — library → `input.p8` → on-screen menu → "exit to
+   library" → back in the library → Return.
+3. **getgames** — the menu's Get Games with `fake-itch.sh` standing in for
+   `q2-pico8-itch` (same commands and output, no network): list, download,
+   the new cart appears in the library.
+4. **audio-30fps / demo-30fps / update60-60fps** (`Q2_PICO8_CART`, 120
+   frames) — pacing and synth audio to WAV.
+5. **png-cart** — a `.p8.png` in the layout the helper writes for web
+   exports loads and runs.
+6. **input-controls / input-fallback** — `tests/input.p8` with the
+   Pocket Boy layout and with the Q2 Pod 1.8 fallback (`Q2_SIM_FULL=0`);
+   `check.py` measures the circle in the frames.
+7. **invalid-missing / invalid-corrupt** — exit 2 with an error screen,
+   never FAKE-08's menu cart.
 
 Each scenario writes `frames/frame_*.png`, `audio.wav`,
 `stats.json` (frame timestamps/hashes, audio stats, exit reason) and
@@ -76,13 +84,15 @@ Each scenario writes `frames/frame_*.png`, `audio.wav`,
 
 ```sh
 FAKE08_SRC=/tmp/fake-08 bash tests/host_q2_sim/build.sh
-Q2_SIM_CART=audio.p8 Q2_SIM_MAX_FRAMES=120 \
+Q2_PICO8_DATA=/tmp/sd Q2_PICO8_CART=audio.p8 Q2_SIM_MAX_FRAMES=120 \
   Q2_SIM_OUTDIR=/tmp/sim-out Q2_SIM_INPUT=tests/host_q2_sim/scripts/empty.txt \
   ./build/host-sim/q2-sim
+# Without Q2_PICO8_CART the library opens; script it with raw Q2 events:
+#   <ms> key RETURN|PLAY|PREV|NEXT|CENTRE down|up|press
+#   <ms> wheel <travel>   <ms> touch <x> <y> down|move|up   <ms> quit
 ```
 
-Exit codes mirror `fake08_main.cpp`: 0 ok, 1 host failed to open,
-2 cart failed to load.
+Exit codes mirror `fake08_main.cpp`: 0 ok, 2 cart failed to load.
 
 `Q2_SIM_MAX_FRAMES` is an approximate cap: the run presents ~2 frames
 past the limit, because the quit is only observed at the top of the
@@ -99,11 +109,11 @@ shows no error either. That is now fixed in the Q2 host, without
 changing upstream FAKE-08: `src/cart_validate.h` /
 `q2_cart_lua_ok()` (in `src/fake08_host.cpp`) parses the cart with
 upstream's own `Cart` class and compiles its Lua with z8lua before
-the VM starts. A bad cart shows a LOAD ERROR screen (cart name +
+the VM starts. A bad cart shows an error screen (cart name +
 syntax error) and exits 2; it never enters `GameLoop()` and never
 loads the BIOS. A missing cart still exits 2 with 0 frames.
-Runtime errors *during* play (e.g. in `_update`) still follow
-upstream's BIOS-fallback path — that is a separate, un-fixed case.
+Runtime errors *during* play (e.g. in `_update`) make upstream load its
+menu cart; the player then returns to the library and shows the error.
 
 ## Still device-only
 

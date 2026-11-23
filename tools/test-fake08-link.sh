@@ -10,9 +10,12 @@ mkdir -p build/fake08-link
 includes=(-Isrc "-I$src/source" "-I$src/libs/z8lua"
           "-I$src/libs/miniz" "-I$src/libs/lodepng" "-I$src/libs/simpleini")
 objects=()
+overlay="$(bash tools/fake08-overlay.sh "$src" build/fake08-link/fake08-overlay)"
 for file in "$src/source/"*.cpp "$src/libs/lodepng/"*.cpp \
-            src/fake08_host.cpp src/fake08_main.cpp; do
+            src/fake08_host.cpp src/fake08_main.cpp src/app.cpp src/ui.cpp src/covers.cpp \
+            src/coverflow.cpp src/library.cpp src/getgames.cpp; do
     [ "${file##*/}" = main.cpp ] && continue
+    [ "${file##*/}" = vm.cpp ] && file="$overlay/vm.cpp"
     out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
     g++ -O0 -std=gnu++17 -fno-rtti -DQ2_GLIBC -DQ2_FAKE08_SMOKE \
         "${includes[@]}" -c "$file" -o "$out"
@@ -27,7 +30,7 @@ for file in "$src/libs/z8lua/"*.c "$src/libs/miniz/"*.c \
     g++ -O0 -std=gnu++17 -DQ2_GLIBC -DQ2_FAKE08_SMOKE "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")
 done
-for file in src/cart_browser.c tests/q2_fake08_stub.c; do
+for file in src/q2_input.c src/itch.c tests/q2_fake08_stub.c; do
     out="build/fake08-link/$(echo "$file" | tr '/.' '__').o"
     gcc -O0 -std=gnu11 -DQ2_GLIBC -DQ2_FAKE08_SMOKE "${includes[@]}" -c "$file" -o "$out"
     objects+=("$out")

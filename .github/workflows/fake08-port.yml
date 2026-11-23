@@ -16,15 +16,27 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install native and MIPS tools
-        run: sudo apt-get update && sudo apt-get install -y clang lld gcc g++ make unzip zip file libpng-dev python3-numpy python3-pil
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld gcc g++ make unzip zip file libpng-dev python3-numpy python3-pil
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Vet and test the itch.io helper
+        working-directory: src/itch-helper
+        run: |
+          test -z "$(gofmt -l $(ls *.go))"
+          go vet -mod=vendor .
+          go test -mod=vendor . libpng-dev python3-numpy python3-pil
       - name: Verify existing freestanding Q2 browser
         run: |
           bash -n tools/build-fake08.sh
           bash -n tools/test-fake08-link.sh
           make check
           clang --target=mipsel-linux-gnu -march=mips32r2 -mabi=32 \
-            -mfp64 -mnan=2008 -ffreestanding -std=c11 \
-            -DQ2_GLIBC -Isrc -fsyntax-only src/q2_platform.c
+            -mfp64 -mnan=2008 -ffreestanding -std=c11 -Wall -Wextra -Werror \
+            -DQ2_GLIBC -Isrc -fsyntax-only src/q2_platform.c src/q2_input.c
       - name: Verify installable browser-preview archive
         run: |
           unzip -t dist/q2-femto8-browser-preview.zip
@@ -58,13 +70,17 @@ jobs:
             -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
             -I/tmp/fake-08/libs/miniz -I/tmp/fake-08/libs/lodepng \
             -I/tmp/fake-08/libs/simpleini src/fake08_main.cpp
+          for file in src/app.cpp src/ui.cpp src/covers.cpp src/coverflow.cpp \
+                      src/library.cpp src/getgames.cpp; do
+            g++ -std=c++17 -Wall -Wextra -Werror -DQ2_GLIBC -fsyntax-only \
+              -Isrc -I/tmp/fake-08/source -I/tmp/fake-08/libs/z8lua \
+              -I/tmp/fake-08/libs/lodepng "$file"
+          done
+          gcc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only src/itch.c
       - name: Link the full FAKE-08 game engine against Q2 host ABI
         run: FAKE08_SRC=/tmp/fake-08 bash tools/test-fake08-link.sh
       - name: Run host Q2 gameplay, input, rendering and audio regression tests
-        run: |
-          sudo mkdir -p /mnt/mmc
-          sudo chown "$(id -u):$(id -g)" /mnt/mmc
-          FAKE08_SRC=/tmp/fake-08 bash tests/host_q2_sim/run.sh "$RUNNER_TEMP/q2-pico8-host-sim"
+        run: FAKE08_SRC=/tmp/fake-08 bash tests/host_q2_sim/run.sh "$RUNNER_TEMP/q2-pico8-host-sim"
       - name: Upload gameplay simulation summary
         if: always()
         uses: actions/upload-artifact@v6
@@ -119,12 +135,17 @@ jobs:
           dpkg-deb -x /tmp/libstdcpp8.deb /tmp/gcc8
           find /tmp/gcc8 -name libstdc++.a -print
           test -f /tmp/gcc8/usr/lib/gcc/mipsel-linux-gnu/8/libstdc++.a
-      - name: Cross-compile real FAKE-08 engine for Q2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Cross-compile real FAKE-08 engine and the itch.io helper for Q2
         env:
           FAKE08_SRC: /tmp/fake-08
           Q2_CXX: mipsel-linux-gnu-g++-11
           Q2_CC: mipsel-linux-gnu-gcc-11
           Q2_GCC8_ROOT: /tmp/gcc8
+          Q2_REQUIRE_ITCH: '1'
         run: bash tools/build-fake08.sh
       - name: Check MIPS architecture and runtime dependencies
         run: |
@@ -146,11 +167,20 @@ jobs:
           # No Q2 framebuffer in the runner; the app should return cleanly
           # from q2_open(). This verifies loader, libc and static C++ startup.
           timeout 15s qemu-mipsel -L "$HOME/.cache/q2/sysroot" dist/player/.pico8/q2-pico8
+          # The Go helper is static soft-float MIPS; "qr" needs no network.
+          readelf -h dist/player/.pico8/q2-pico8-itch | grep -i nan2008
+          timeout 30s qemu-mipsel dist/player/.pico8/q2-pico8-itch qr https://example.itch.io/game > /tmp/qr.txt
+          test "$(head -c 21 /tmp/qr.txt | tr -d 01)" = ""
+          test "$(wc -l < /tmp/qr.txt)" -ge 21
       - name: Verify playable install ZIP
         run: |
           unzip -t dist/q2-pico8-playable-experimental.zip
           unzip -p dist/q2-pico8-playable-experimental.zip .pico8/q2app | grep -Fx 'name=PICO-8'
           unzip -p dist/q2-pico8-playable-experimental.zip .pico8/q2-pico8 | cmp - dist/player/.pico8/q2-pico8
+          for member in .pico8/q2-pico8-itch .pico8/itch-ca.pem .pico8/licenses/NOTICE.md \
+                        .pico8/licenses/Liberation-Sans-OFL.txt .pico8/licenses/Go.txt; do
+            unzip -Z1 dist/q2-pico8-playable-experimental.zip | grep -Fx "$member"
+          done
       - uses: actions/upload-artifact@v6
         with:
           name: q2-pico8-playable-experimental

@@ -1,0 +1,8 @@
+# tests/input.p8 on Q2 Pod 1.8 firmware without gameview (keys not grabbed):
+# Previous = Left, Play = X, Back pauses and Back twice within 500 ms exits.
+500 key PREV down
+1100 key PREV up
+1400 key PLAY press
+2000 key BACK press
+2300 key BACK press
+5000 quit

@@ -65,8 +65,11 @@ compile_c(){
 }
 # The native Q2 runtime uses glibc's main(), not the standalone browser's
 # custom __start. The upstream main.cpp and SDL hosts must not be linked.
+# vm.cpp comes from the Q2 overlay (pause-menu labels; see the script).
+overlay="$(bash tools/fake08-overlay.sh "$src" "$out/fake08-overlay")"
 for file in "$src/source/"*.cpp; do
     [ "${file##*/}" = main.cpp ] && continue
+    [ "${file##*/}" = vm.cpp ] && file="$overlay/vm.cpp"
     compile_cpp "$file"
 done
 for file in "$src/libs/lodepng/"*.cpp; do compile_cpp "$file"; done
@@ -78,17 +81,18 @@ for file in "$src/libs/z8lua/"*.c "$src/libs/miniz/"*.c \
     compile_cpp "$file"
 done
 # Q2_GLIBC suppresses the freestanding browser's custom __start.
-for file in src/q2_platform.c src/cart_browser.c; do
+for file in src/q2_platform.c src/q2_input.c src/itch.c; do
     name="$(echo "$file" | tr '/.' '__')"
     "$cc" "${flags[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu11 -c "$file" -o "$out/$name.o"
     objects+=("$out/$name.o")
 done
-"$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
-    -c src/fake08_host.cpp -o "$out/fake08_host.o"
-objects+=("$out/fake08_host.o")
-"$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
-    -c src/fake08_main.cpp -o "$out/fake08_main.o"
-objects+=("$out/fake08_main.o")
+for file in src/fake08_host.cpp src/fake08_main.cpp src/app.cpp src/ui.cpp src/covers.cpp \
+            src/coverflow.cpp src/library.cpp src/getgames.cpp; do
+    name="$(echo "$file" | tr '/.' '__')"
+    "$cxx" "${flags[@]}" "${old_cxx[@]}" "${sysincludes[@]}" "${includes[@]}" -DQ2_GLIBC -std=gnu++17 \
+        -c "$file" -o "$out/$name.o"
+    objects+=("$out/$name.o")
+done
 # -ldl: q2_platform.c resolves ALSA at runtime with dlopen; the firmware's
 # glibc 2.28 keeps dlopen in libdl.so.2 (unlike glibc 2.34+, where it
 # moved into libc).
@@ -112,10 +116,36 @@ python3 tools/mark-mips-nan2008.py "$binary"
 file "$binary"
 sed 's/^name=.*/name=PICO-8/' q2app > "$stage/.pico8/q2app"
 : > "$stage/.pico8/carts/.keep"
+mkdir -p "$stage/.pico8/licenses"
 cp "$src/LICENSE.MD" "$stage/.pico8/FAKE-08-LICENSE.md"
+cp src/FONT-LICENSE "$stage/.pico8/licenses/Liberation-Sans-OFL.txt"
+cp NOTICE.md "$stage/.pico8/licenses/NOTICE.md"
+members=(.pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md
+         .pico8/licenses/Liberation-Sans-OFL.txt .pico8/licenses/NOTICE.md)
+
+# itch.io helper for Get Games (Go, cross-built for the Q2's MIPS soft-float
+# user space) and the root certificates it verifies itch.io with.
+if bash tools/build-itch.sh "$stage/.pico8/q2-pico8-itch"; then
+    certs="${Q2_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}"
+    cp "$certs" "$stage/.pico8/itch-ca.pem"
+    helper=src/itch-helper
+    cp "$helper/NextUI-Itchio-Pak-LICENSE" "$stage/.pico8/licenses/NextUI-Itchio-Pak.txt"
+    cp "$helper/vendor/github.com/skip2/go-qrcode/LICENSE" "$stage/.pico8/licenses/go-qrcode.txt"
+    cp "$helper/vendor/golang.org/x/net/LICENSE" "$stage/.pico8/licenses/golang.org-x-net.txt"
+    cp "$helper/vendor/golang.org/x/image/LICENSE" "$stage/.pico8/licenses/golang.org-x-image.txt"
+    cp "$("${Q2_GO:-go}" env GOROOT)/LICENSE" "$stage/.pico8/licenses/Go.txt"
+    members+=(.pico8/q2-pico8-itch .pico8/itch-ca.pem .pico8/licenses/NextUI-Itchio-Pak.txt
+              .pico8/licenses/go-qrcode.txt .pico8/licenses/golang.org-x-net.txt
+              .pico8/licenses/golang.org-x-image.txt .pico8/licenses/Go.txt)
+elif [ "${Q2_REQUIRE_ITCH:-0}" = 1 ]; then
+    echo "The itch.io helper did not build" >&2
+    exit 1
+else
+    echo "warning: no Go toolchain: the package has no Get Games helper" >&2
+fi
 (
     cd "$stage"
-    zip -q -FS ../q2-pico8-playable-experimental.zip \
-        .pico8/q2app .pico8/q2-pico8 .pico8/carts/.keep .pico8/FAKE-08-LICENSE.md
+    rm -f ../q2-pico8-playable-experimental.zip
+    zip -q -FS ../q2-pico8-playable-experimental.zip "${members[@]}"
 )
 echo "Created dist/q2-pico8-playable-experimental.zip"

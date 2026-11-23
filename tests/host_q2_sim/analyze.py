@@ -97,10 +97,6 @@ def main():
     scenarios = {}
     for d in sorted(p for p in outbase.iterdir() if p.is_dir() and (p / "stats.json").exists()):
         scenarios[d.name] = analyse_scenario(d)
-    # browser run has no stats.json from q2-sim; parse its log instead
-    blog = outbase / "browser" / "browser.log"
-    if blog.exists():
-        scenarios["browser"] = {"name": "browser", "log": blog.read_text()}
     summary = {"scenarios": scenarios}
     (outbase / "summary.json").write_text(json.dumps(summary, indent=2))
     lines = ["# Host Q2 sim — validation report", ""]

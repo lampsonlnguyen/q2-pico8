@@ -14,13 +14,15 @@
  *    bottom-up storage, palette mapping (map[color] & 0x8f for the
  *    FAKE-08 128..143 alternate colours), and the same on-screen
  *    control overlay (same positions, glyphs, active highlight).
- *  - q2_read_input(): identical datagram semantics — 'w <n>' wheel
- *    synthesises brief LEFT/RIGHT presses, key codes 218=O, 171=X,
- *    222/172=LEFT, 223/173=RIGHT, code 170 (Back) gives PAUSE on a
- *    single press and quit on a second press within 500 ms, touch
- *    't d x y' hits the same control rectangles. The datagrams here
- *    come from a script file (Q2_SIM_INPUT) instead of a Unix socket,
- *    scheduled by real wall-clock time since q2_open().
+ *  - q2_read_input(): scripted raw Q2 events (Q2 Pod card-app key codes,
+ *    wheel travel, touch down/move/up) are fed to the REAL mapper in
+ *    src/q2_input.c, exactly as src/q2_platform.c feeds the socket and
+ *    GPIO events. Q2_SIM_FULL=1 (default) simulates all five buttons
+ *    (gameview firmware or grabbed GPIO keys); Q2_SIM_FULL=0 simulates
+ *    Q2 Pod 1.8's fallback. Events come from a script file
+ *    (Q2_SIM_INPUT), scheduled by wall-clock time since q2_open().
+ *  - q2_present_canvas(): the native 375x320 UI, stored with the same
+ *    rotation as the device and dumped to PNG like game frames.
  *  - q2_millis(): real CLOCK_MONOTONIC time, NOT the +34 ms fake time
  *    in tests/q2_fake08_stub.c — so frame pacing is genuinely measured.
  *  - ALSA: replaced by a WAV capture sink (Q2_SIM_OUTDIR/audio.wav,
@@ -62,26 +64,12 @@
 #include <time.h>
 #include <unistd.h>
 
-/* --- on-screen controls: identical table to src/q2_platform.c -------- */
-enum { CONTROL_SIZE = 32, CONTROL_X_LEFT = 12, CONTROL_X_RIGHT = 331 };
-static const struct {
-    int x, y;
-    unsigned key;
-    uint8_t glyph[7];
-} controls[] = {
-    {CONTROL_X_LEFT, 70, Q2_UP,    {8,28,62,8,8,8,8}},
-    {CONTROL_X_LEFT, 120,Q2_LEFT,  {0,8,16,62,16,8,0}},
-    {CONTROL_X_LEFT, 170,Q2_RIGHT, {0,8,4,62,4,8,0}},
-    {CONTROL_X_LEFT, 220,Q2_DOWN,  {8,8,8,8,62,28,8}},
-    {CONTROL_X_RIGHT,120,Q2_O,     {0,28,34,34,34,28,0}},
-    {CONTROL_X_RIGHT,170,Q2_X,     {0,34,20,8,20,34,0}},
-};
+#include "q2_input.h"
 
 /* --- state ------------------------------------------------------------ */
 static q2_pixel *fb_mem;
-static q2_input input_state;
-static unsigned physical_buttons, touch_button, back_at, back_pending;
-static int quit_flag;
+static uint32_t canvas_mem[Q2_WIDTH * Q2_HEIGHT];
+static int quit_flag, sim_full = 1;
 static char exit_reason[32] = "not-exited";
 
 static struct timespec start_ts;
@@ -106,7 +94,7 @@ static size_t frame_log_cap, frame_log_len;
 static unsigned input_events_applied;
 
 /* input script */
-enum { EV_WHEEL, EV_KEY_DOWN, EV_KEY_UP, EV_BACK, EV_TOUCH_DOWN, EV_TOUCH_UP, EV_QUIT };
+enum { EV_WHEEL, EV_KEY_DOWN, EV_KEY_UP, EV_TOUCH, EV_QUIT };
 typedef struct { unsigned ms; int kind; int a, b; } sim_event;
 static sim_event *events;
 static size_t event_count, event_next;
@@ -136,19 +124,30 @@ static unsigned monotonic_ms(void) {
 unsigned q2_millis(void) { return monotonic_ms(); }
 
 /* --- input script ----------------------------------------------------- */
-static unsigned key_bit(const char *name) {
-    if (!strcmp(name, "LEFT")) return Q2_LEFT;
-    if (!strcmp(name, "RIGHT")) return Q2_RIGHT;
-    if (!strcmp(name, "UP")) return Q2_UP;
-    if (!strcmp(name, "DOWN")) return Q2_DOWN;
-    if (!strcmp(name, "O")) return Q2_O;
-    if (!strcmp(name, "X")) return Q2_X;
-    return 0;
+/* Physical Q2 buttons, as Q2 Pod's card-app codes. */
+static int key_code(const char *name) {
+    if (!strcmp(name, "RETURN") || !strcmp(name, "BACK")) return Q2_KEY_RETURN;
+    if (!strcmp(name, "PLAY")) return Q2_KEY_PLAY;
+    if (!strcmp(name, "PREV")) return Q2_KEY_PREVIOUS;
+    if (!strcmp(name, "NEXT")) return Q2_KEY_NEXT;
+    if (!strcmp(name, "CENTRE") || !strcmp(name, "CENTER")) return Q2_KEY_CENTRE;
+    return -1;
 }
 
+static void add_event(sim_event ev) {
+    events = realloc(events, (event_count + 1) * sizeof *events);
+    events[event_count++] = ev;
+}
+
+/* Script lines (ms since q2_open):
+ *   <ms> wheel <travel>                clockwise positive, 200 a turn
+ *   <ms> key <BUTTON> down|up|press    RETURN PLAY PREV NEXT CENTRE (BACK = RETURN)
+ *   <ms> touch <x> <y> down|move|up
+ *   <ms> quit
+ * "press" is down then up 60 ms later. */
 static void load_script(const char *path) {
     FILE *f = fopen(path, "r");
-    if (!f) return;
+    if (!f) { fprintf(stderr, "q2-sim: no input script %s\n", path); return; }
     char line[256];
     while (fgets(line, sizeof line, f)) {
         char *p = line;
@@ -163,27 +162,34 @@ static void load_script(const char *path) {
             int d = 0;
             if (sscanf(p, "%*u %*s %d", &d) == 1) { ev.kind = EV_WHEEL; ev.a = d; }
         } else if (!strcmp(word, "key")) {
-            if (sscanf(p, "%*u %*s %31s %15s", name, dir) == 2) {
-                if (!strcmp(name, "BACK")) ev.kind = EV_BACK;
-                else if (!strcmp(dir, "down")) { ev.kind = EV_KEY_DOWN; ev.a = (int)key_bit(name); }
-                else if (!strcmp(dir, "up")) { ev.kind = EV_KEY_UP; ev.a = (int)key_bit(name); }
-                else if (!strcmp(dir, "press")) { ev.kind = EV_KEY_DOWN; ev.a = (int)key_bit(name); }
+            if (sscanf(p, "%*u %*s %31s %15s", name, dir) == 2 && key_code(name) >= 0) {
+                ev.a = key_code(name);
+                if (!strcmp(dir, "up")) ev.kind = EV_KEY_UP;
+                else ev.kind = EV_KEY_DOWN;
+                if (!strcmp(dir, "press")) {
+                    sim_event up = ev;
+                    up.ms = ms + 60;
+                    up.kind = EV_KEY_UP;
+                    add_event(up);
+                }
             }
         } else if (!strcmp(word, "touch")) {
             int x = 0, y = 0;
             if (sscanf(p, "%*u %*s %d %d %15s", &x, &y, dir) == 3) {
-                ev.kind = !strcmp(dir, "down") ? EV_TOUCH_DOWN : EV_TOUCH_UP;
-                ev.a = x; ev.b = y;
+                /* The touch action ('d', 'm' or 'u') rides above the kind. */
+                char action = dir[0] == 'd' ? 'd' : dir[0] == 'm' ? 'm' : 'u';
+                ev.kind = EV_TOUCH | (action << 8);
+                ev.a = x;
+                ev.b = y;
             }
         } else if (!strcmp(word, "quit")) {
             ev.kind = EV_QUIT;
         }
         if (ev.kind < 0) continue;
-        events = realloc(events, (event_count + 1) * sizeof *events);
-        events[event_count++] = ev;
+        add_event(ev);
     }
     fclose(f);
-    /* insertion sort by ms (scripts are small and usually already sorted) */
+    /* insertion sort by ms, stable for equal times */
     for (size_t i = 1; i < event_count; ++i) {
         sim_event e = events[i];
         size_t j = i;
@@ -289,6 +295,7 @@ static int write_png(const char *path) {
     return 0;
 }
 
+static void log_frame(uint64_t h);
 static void present_mapped(const uint8_t *pixels, const uint8_t *map, const uint32_t *palette) {
     if (!fb_mem || !pixels || !palette) return;
     for (unsigned x = 0; x < Q2_WIDTH; ++x) {
@@ -309,23 +316,28 @@ static void present_mapped(const uint8_t *pixels, const uint8_t *map, const uint
         }
     }
     if (map) {
-        for (unsigned i = 0; i < sizeof controls / sizeof controls[0]; ++i) {
-            unsigned active = input_state.buttons & controls[i].key;
-            for (int x = 0; x < CONTROL_SIZE; ++x) {
-                q2_pixel *col = fb_mem + (controls[i].x + x) * Q2_HEIGHT;
-                for (int y = 0; y < CONTROL_SIZE; ++y) {
+        unsigned held = q2_input_held();
+        for (unsigned i = 0; i < q2_control_count(); ++i) {
+            const q2_control *c = q2_control_at(i);
+            unsigned active = held & c->key;
+            for (int x = 0; x < Q2_CONTROL_SIZE; ++x) {
+                q2_pixel *col = fb_mem + (c->x + x) * Q2_HEIGHT;
+                for (int y = 0; y < Q2_CONTROL_SIZE; ++y) {
                     unsigned ink = x >= 9 && x < 23 && y >= 9 && y < 23 &&
-                        (controls[i].glyph[(y - 9) / 2] & (1u << (6 - (x - 9) / 2)));
-                    col[Q2_HEIGHT - 1 - controls[i].y - y] = ink ? 0xffeeeeeeu :
+                        (c->glyph[(y - 9) / 2] & (1u << (6 - (x - 9) / 2)));
+                    col[Q2_HEIGHT - 1 - c->y - y] = ink ? 0xffeeeeeeu :
                         active ? 0xff326977u : 0xff263247u;
                 }
             }
         }
     }
-    /* log + dump */
     uint64_t h = 1469598103934665603ULL;
     h = fnv1a(pixels, 8192, h);
     if (map) h = fnv1a(map, 16, h);
+    log_frame(h);
+}
+
+static void log_frame(uint64_t h) {
     unsigned now = q2_millis();
     if (frame_log_len == frame_log_cap) {
         frame_log_cap = frame_log_cap ? frame_log_cap * 2 : 1024;
@@ -348,6 +360,15 @@ void q2_present(const uint8_t *pixels, const uint32_t palette[16]) {
     present_mapped(pixels, 0, palette);
 }
 
+uint32_t *q2_canvas(void) { return canvas_mem; }
+void q2_present_canvas(void) {
+    if (!fb_mem) return;
+    for (unsigned x = 0; x < Q2_WIDTH; ++x)
+        for (unsigned y = 0; y < Q2_HEIGHT; ++y)
+            fb_mem[x * Q2_HEIGHT + (Q2_HEIGHT - 1 - y)] = 0xff000000u | canvas_mem[y * Q2_WIDTH + x];
+    log_frame(fnv1a((const uint8_t *)canvas_mem, sizeof canvas_mem, 1469598103934665603ULL));
+}
+
 void q2_present_fake08(const uint8_t *pixels, const uint8_t screen_map[16], const uint32_t colors[144]) {
     if (!screen_map) return;
     present_mapped(pixels, screen_map, colors);
@@ -355,9 +376,10 @@ void q2_present_fake08(const uint8_t *pixels, const uint8_t screen_map[16], cons
 
 /* --- open / close / input ---------------------------------------------- */
 int q2_open(void) {
-    input_state = (q2_input){0};
-    physical_buttons = touch_button = back_pending = 0;
-    back_at = 0;
+    q2_input_reset();
+    const char *full = getenv("Q2_SIM_FULL");
+    sim_full = !(full && full[0] == '0');
+    q2_input_set_full(sim_full);
     quit_flag = 0;
     strcpy(exit_reason, "not-exited");
     frame_count = distinct_frames = 0;
@@ -430,51 +452,14 @@ void q2_close(void) {
 
 q2_input q2_read_input(void) {
     unsigned now = q2_millis();
-    input_state.pressed = 0;
-    input_state.wheel = 0;
     while (event_next < event_count && events[event_next].ms <= now) {
         sim_event ev = events[event_next++];
         ++input_events_applied;
-        switch (ev.kind) {
-        case EV_WHEEL:
-            input_state.wheel += ev.a;
-            if (ev.a > 0) input_state.pressed |= Q2_RIGHT;
-            else if (ev.a < 0) input_state.pressed |= Q2_LEFT;
-            break;
-        case EV_KEY_DOWN:
-            input_state.pressed |= (unsigned)ev.a & ~physical_buttons;
-            physical_buttons |= (unsigned)ev.a;
-            break;
-        case EV_KEY_UP:
-            physical_buttons &= ~(unsigned)ev.a;
-            break;
-        case EV_BACK:
-            /* device: Back arrives as key-up code 170; single press =
-             * PAUSE, second press within 500 ms = quit. */
-            if (back_pending && now - back_at <= 500u) {
-                quit_flag = 1;
-                strcpy(exit_reason, "double-back");
-            } else {
-                input_state.pressed |= Q2_PAUSE;
-                back_pending = 1;
-                back_at = now;
-            }
-            break;
-        case EV_TOUCH_DOWN: {
-            touch_button = 0;
-            for (unsigned i = 0; i < sizeof controls / sizeof controls[0]; ++i) {
-                if (ev.a >= controls[i].x && ev.a < controls[i].x + CONTROL_SIZE &&
-                    ev.b >= controls[i].y && ev.b < controls[i].y + CONTROL_SIZE) {
-                    touch_button = controls[i].key;
-                    input_state.pressed |= touch_button;
-                    break;
-                }
-            }
-            break;
-        }
-        case EV_TOUCH_UP:
-            touch_button = 0;
-            break;
+        switch (ev.kind & 0xff) {
+        case EV_WHEEL: q2_input_wheel(ev.a, now); break;
+        case EV_KEY_DOWN: q2_input_key(ev.a, 1, now); break;
+        case EV_KEY_UP: q2_input_key(ev.a, 0, now); break;
+        case EV_TOUCH: q2_input_touch((char)(ev.kind >> 8), ev.a, ev.b, now); break;
         case EV_QUIT:
             quit_flag = 1;
             strcpy(exit_reason, "script-quit");
@@ -485,9 +470,13 @@ q2_input q2_read_input(void) {
         quit_flag = 1;
         strcpy(exit_reason, "max-frames");
     }
-    input_state.buttons = physical_buttons | touch_button;
-    input_state.quit = (unsigned)quit_flag;
-    return input_state;
+    if (quit_flag) q2_input_quit();
+    q2_input in = q2_input_take(now);
+    if (in.quit && !quit_flag) {
+        quit_flag = 1;
+        strcpy(exit_reason, sim_full ? "return-centre" : "double-back");
+    }
+    return in;
 }
 
 /* --- sc() shim for the real src/cart_browser.c --------------------------
@@ -553,6 +542,6 @@ long sc(long n, long a, long b, long c, long d, long e, long f) {
     return -1;
 }
 
-/* The device-only argument and game-mode hooks; the sim keeps the menu mapping. */
+/* The device-only argument hook; game mode switches the real mapper. */
 void q2_set_args(int argc, char **argv) { (void)argc; (void)argv; }
-void q2_set_game_mode(int on) { (void)on; }
+void q2_set_game_mode(int on) { q2_input_set_game(on); }
