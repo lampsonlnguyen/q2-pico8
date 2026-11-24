@@ -9,7 +9,7 @@ Stereo sound goes through the Q2 ALSA path (see "Audio" below).
 
 ## Emulator engine: FAKE-08
 
-**The playable Q2 PICO-8 app uses [FAKE-08](https://github.com/jtothebell/fake-08), not Femto-8.**
+**The playable Q2 PICO-8 app uses [FAKE-08](https://github.com/jtothebell/fake-08), and initally started sith Femto-8.**
 The Q2 build links FAKE-08's VM and Lua runtime to a native MIPS/Q2
 platform layer. The Cover Flow library, controls, framebuffer and ALSA audio
 are Q2-specific integrations.
