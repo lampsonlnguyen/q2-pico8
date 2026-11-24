@@ -1,4 +1,6 @@
 # PICO-8 player for Q2 Pod
+<img width="420" height="108" alt="image" src="https://github.com/user-attachments/assets/440a4364-1006-4d70-ba79-99301a809555" />
+
 
 Plays PICO-8 cartridges on the Shanling Q2 with the
 [FAKE-08](https://github.com/jtothebell/fake-08) VM. Carts appear in a
