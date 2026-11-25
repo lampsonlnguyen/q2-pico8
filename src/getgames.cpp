@@ -20,6 +20,7 @@
 #include "itch.h"
 #include "q2_input.h"
 #include "ui.h"
+#include "wheel_scroll.h"
 
 namespace {
 enum { FRAME_MS = 33, TOP = 48, ROW = 45, VISIBLE = 6 };
@@ -317,6 +318,7 @@ std::string getgames_run() {
     st.added.clear();
     st.mode = LIST;
     if (!st.loaded && st.job == NONE) load_page();
+    WheelScroll wheel;
     std::vector<std::string> before = files_cache;
     while (true) {
         unsigned now = q2_millis();
@@ -324,7 +326,8 @@ std::string getgames_run() {
         if (st.job != NONE && itch_finished(&job_state, &ok)) finish_job(ok);
         q2_input in = q2_read_input();
         if (in.quit) { cancel_job(); q2_input_quit(); break; }
-        int steps = 0;
+        Mode previous_mode = st.mode;
+        int steps = in.touch ? 0 : wheel.steps(in.wheel, now);
         if (in.pressed & Q2_LEFT) --steps;
         if (in.pressed & Q2_RIGHT) ++steps;
         if (st.mode == QR) {
@@ -367,6 +370,7 @@ std::string getgames_run() {
                 if (st.job == NONE) open_row(st.focus);
             }
         }
+        if (st.mode != previous_mode) wheel = {};
         if (st.mode == QR && st.qr_size) draw_qr();
         else {
             draw_list(now);

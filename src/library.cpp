@@ -22,6 +22,7 @@
 #include "logger.h"
 #include "q2_input.h"
 #include "ui.h"
+#include "wheel_scroll.h"
 
 namespace {
 enum { FRAME_MS = 33, HEADER = 44, TITLE_Y = 234, SUB_Y = 266, HINT_Y = 296,
@@ -240,9 +241,8 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
     if (!message.empty()) notify(message);
     LibraryChoice choice;
     bool menu = false, dragging = false, dirty = true;
-    constexpr int wheel_tick = 38;
-    int focus = 0, drag_x = 0, wheel_travel = 0;
-    unsigned last_wheel = 0;
+    WheelScroll wheel;
+    int focus = 0, drag_x = 0;
     unsigned last_scan = q2_millis();
     float drag_flow = 0;
     title_since = q2_millis();
@@ -251,32 +251,30 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
         unsigned now = q2_millis();
         q2_input in = q2_read_input();
         if (in.quit) { choice.exit = true; break; }
+        int steps = in.touch || dragging ? 0 : wheel.steps(in.wheel, now);
+        bool was_menu = menu;
         if (menu) {
             if (in.pressed & (Q2_PAUSE | Q2_X)) menu = false;
-            if (in.pressed & Q2_LEFT) focus = (focus + M_COUNT - 1) % M_COUNT;
-            if (in.pressed & Q2_RIGHT) focus = (focus + 1) % M_COUNT;
+            if (in.pressed & Q2_LEFT) --steps;
+            if (in.pressed & Q2_RIGHT) ++steps;
+            focus = (focus + steps % M_COUNT + M_COUNT) % M_COUNT;
+            if (steps) dirty = true;
             int tapped = in.touch_ended ? menu_at(in.touch_x, in.touch_y) : -2;
             if (tapped == -1) menu = false;
             if (tapped >= 0) focus = tapped;
             if ((in.pressed & Q2_O) || tapped >= 0) {
                 menu = false;
+                wheel = {};
                 if (activate(focus, choice)) break;
                 q2_set_game_mode(0);
                 dirty = true;
                 continue;
             }
         } else {
-            if (in.wheel && !in.touch && !dragging) {
-                if (now - last_wheel > 300u) wheel_travel = 0;
-                last_wheel = now;
-                wheel_travel += in.wheel;
-                int steps = wheel_travel / wheel_tick;
-                wheel_travel %= wheel_tick;
-                if (steps) select(selected + steps);
-            }
+            if (steps) select(selected + steps);
             if (in.pressed & Q2_LEFT) select(selected - 1);
             if (in.pressed & Q2_RIGHT) select(selected + 1);
-            if (in.pressed & Q2_X) { menu = true; focus = wheel_travel = 0; }
+            if (in.pressed & Q2_X) { menu = true; focus = 0; }
             if (in.pressed & Q2_PAUSE) { choice.exit = true; break; }
             if ((in.pressed & Q2_O) && !carts.empty()) {
                 choice.cart = carts[selected].file;
@@ -306,6 +304,7 @@ LibraryChoice library_run(const std::string &keep, const std::string &message) {
             }
             if (!in.touch) dragging = false;
         }
+        if (was_menu != menu) wheel = {};
         /* New carts copied over USB or by Get Games appear by themselves. */
         if (now - last_scan > 5000 && !menu && !dragging) {
             last_scan = now;

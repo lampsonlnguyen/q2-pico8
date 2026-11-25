@@ -13,7 +13,8 @@
 4600 key CENTRE press
 4700 touch 256 42 down
 4750 touch 256 42 up
-4800 touch 188 212 down
-4900 touch 188 212 up
+# Scroll backwards three rows from Resume to ROM Library.
+4800 wheel -114
+4900 key CENTRE press
 6500 key RETURN press
 9000 quit

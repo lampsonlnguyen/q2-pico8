@@ -24,6 +24,7 @@
 #include "fake08_session.h"
 #include "app.h"
 #include "ui.h"
+#include "wheel_scroll.h"
 #include "q2_input.h"
 
 /* Upstream Cart parser + z8lua compiler, for q2_cart_lua_ok() below. */
@@ -136,6 +137,7 @@ enum class MenuPage { Main, Display, Audio };
 
 bool game_menu() {
     q2_set_game_mode(0);
+    WheelScroll wheel;
     MenuPage page = MenuPage::Main;
     const char *status = "";
     int focus = 0;
@@ -155,14 +157,16 @@ bool game_menu() {
         if (in.pressed & Q2_PAUSE) {
             if (main) break;
             page = MenuPage::Main;
+            wheel = {};
             focus = 0;
             status = "";
             dirty = true;
             continue;
         }
         int move = !!(in.pressed & (Q2_RIGHT | Q2_X)) - !!(in.pressed & Q2_LEFT);
+        if (!in.touch) move += wheel.steps(in.wheel, q2_millis());
         if (move) {
-            focus = (focus + move + count) % count;
+            focus = (focus + move % count + count) % count;
             dirty = true;
         }
         int tap = -1;
@@ -174,6 +178,7 @@ bool game_menu() {
                 (in.touch_start_y - top) / row == y / row) tap = y / row;
         }
         if (tap >= 0 || (in.pressed & Q2_O)) {
+            wheel = {};
             if (tap >= 0) focus = tap;
             status = "";
             if (main) {
