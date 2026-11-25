@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.4
+
+- Rotate the clickwheel to navigate the pause menu, library menu, and Get Games. Menu navigation works with in-game wheel input turned off.
+
 ## v1.0.1
 
 - The playable build downloads as a single `q2-pico8.zip` from GitHub Actions and Releases.
