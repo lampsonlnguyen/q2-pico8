@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.5
+
+- Add a theme-tinted PICO-8 cartridge Home shortcut preview for Q2 Pod 1.9.6 and newer. Existing list icons are unchanged; older firmware ignores the preview.
+
 ## v1.0.4
 
 - Rotate the clickwheel to navigate the pause menu, library menu, and Get Games. Menu navigation works with in-game wheel input turned off.

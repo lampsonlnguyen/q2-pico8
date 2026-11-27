@@ -4,3 +4,5 @@ Source: https://explore-feed.github.com/topics/pico-8/pico-8.png
 From the PICO-8 topic on GitHub: https://github.com/topics/pico-8
 
 Resized to 52 and 40 pixels for Q2 Pod.
+
+The monochrome cartridge preview (pane.png) is original artwork for Q2.

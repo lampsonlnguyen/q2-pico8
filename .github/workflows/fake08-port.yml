@@ -171,7 +171,8 @@ jobs:
           unzip -t dist/q2-pico8.zip
           unzip -p dist/q2-pico8.zip .pico8/q2app | grep -Fx 'name=PICO-8'
           unzip -p dist/q2-pico8.zip .pico8/q2-pico8 | cmp - dist/player/.pico8/q2-pico8
-          for member in .pico8/icon.png .pico8/icon-40.png .pico8/licenses/PICO-8-Icon.txt \
+          unzip -p dist/q2-pico8.zip .pico8/pane.png | cmp - assets/pane.png
+          for member in .pico8/icon.png .pico8/icon-40.png .pico8/pane.png .pico8/licenses/PICO-8-Icon.txt \
                         .pico8/q2-pico8-itch .pico8/itch-ca.pem .pico8/licenses/NOTICE.md \
                         .pico8/licenses/Liberation-Sans-OFL.txt .pico8/licenses/Go.txt; do
             unzip -Z1 dist/q2-pico8.zip | grep -Fx "$member"
