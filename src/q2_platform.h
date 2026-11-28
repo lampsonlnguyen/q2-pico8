@@ -52,6 +52,8 @@ void q2_set_args(int argc, char **argv);
  * Menus use Centre to confirm and Return to go back. */
 void q2_set_game_mode(int on);
 void q2_resume_display(void);
+/* Give the controller back to firmware while its own Now Playing view is open. */
+void q2_set_pad_capture(int on);
 void q2_set_audio_route(const char *device, const char *volume);
 
 /* Stereo ALSA audio, 22050 Hz interleaved s16 (FAKE-08's native rate).

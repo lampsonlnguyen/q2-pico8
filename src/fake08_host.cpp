@@ -112,6 +112,7 @@ bool now_playing() {
     if (!switch_audio(true)) return false;
     bool opened_view = false;
     if (app::write_lines(view_path, {"now"})) {
+        q2_set_pad_capture(0);
         unsigned started = q2_millis();
         while (true) {
             auto view = app::read_lines(view_path, 1);
@@ -124,6 +125,7 @@ bool now_playing() {
             usleep(20000);
         }
         q2_resume_display();
+        q2_set_pad_capture(1);
     }
     bool restored = !restore_game || switch_audio(false);
     return opened_view && restored;
