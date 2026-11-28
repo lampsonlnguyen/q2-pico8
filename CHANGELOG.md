@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Integrate Q2 Pod 1.9.6 Devices service via `/tmp/q2-devices.pad` and declare `needs=devices` for automatic installation. Retain independent O/X mapping and native controls.
+
 ## v1.0.6
 
 - Add optional Bluetooth gamepad support via Carbon-66/Q2-Controller: D-pad and left stick, O/X actions, pause, library navigation and disconnect handling. Native controls remain available.
