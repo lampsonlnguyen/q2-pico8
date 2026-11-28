@@ -42,7 +42,7 @@ enum { SYS_CLOSE=4006, SYS_OPEN=4005, SYS_UNLINK=4010, SYS_IOCTL=4054,
        FB_VSCREEN=0x4600, FB_FSCREEN=0x4602, FB_PAN=0x4606,
        O_RDWR=2, O_CLOEXEC=0x80000, MSG_DONTWAIT=0x40 };
 #define SOCKET_PATH "/tmp/q2-pico8.input.sock"
-#define PAD_SOCKET_PATH "/tmp/q2pad.client"
+#define PAD_SOCKET_PATH "/tmp/q2-devices.pad"
 static int fb=-1, sock=-1, pad_sock=-1;
 
 /* Optional Q2-Controller raw input. Never displace another live client.
