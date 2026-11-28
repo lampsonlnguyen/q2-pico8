@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.6
+
+- Add optional Bluetooth gamepad support via Carbon-66/Q2-Controller: D-pad and left stick, O/X actions, pause, library navigation and disconnect handling. Native controls remain available.
+- Return controller input to Q2 Pod while its Now Playing view is open.
+- Pin the firmware archive and sysroot extraction script used by CI, restoring builds after the archive was removed from diamond-crush's main branch.
+
 ## v1.0.5
 
 - Add a theme-tinted PICO-8 cartridge Home shortcut preview for Q2 Pod 1.9.6 and newer. Existing list icons are unchanged; older firmware ignores the preview.
