@@ -66,6 +66,22 @@ static void pad_open(void) {
     if(rc)sc(SYS_CLOSE,fd,0,0,0,0,0);
     else pad_sock=fd;
 }
+
+static void pad_close(void) {
+    if(pad_sock<0)return;
+    sc(SYS_UNLINK,(long)PAD_SOCKET_PATH,0,0,0,0,0);
+    sc(SYS_CLOSE,pad_sock,0,0,0,0,0);
+    pad_sock=-1;
+}
+
+void q2_set_pad_capture(int on) {
+    if(on) {
+        if(pad_sock<0)pad_open();
+    } else {
+        pad_close();
+        q2_input_pad_report("p 0 0 0 0 0 0 0\n",q2_millis());
+    }
+}
 static unsigned var[40],fix[17],stride,front,visible,rows,can_pan;
 static q2_pixel *memory;
 #ifdef Q2_GLIBC
@@ -601,11 +617,7 @@ void q2_debug_stage(unsigned stage,uint32_t rgb,const char *what){(void)stage;(v
 
 void q2_close(void) {
     q2_audio_close();
-    if(pad_sock>=0) {
-        sc(SYS_UNLINK,(long)PAD_SOCKET_PATH,0,0,0,0,0);
-        sc(SYS_CLOSE,pad_sock,0,0,0,0,0);
-        pad_sock=-1;
-    }
+    pad_close();
 #ifdef Q2_GLIBC
     if(keys>=0){sc(SYS_CLOSE,keys,0,0,0,0,0);keys=-1;} /* releases the grab */
 #endif
