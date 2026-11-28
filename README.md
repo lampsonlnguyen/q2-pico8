@@ -77,6 +77,33 @@ PNG in `/.pico8/covers/` named after the cart file plus `.png` (for example
 
 New carts copied to the card show up within a few seconds.
 
+## Bluetooth controller (optional)
+
+Install [Q2-Controller by Carbon-66](https://github.com/Carbon-66/Q2-Controller)
+as a separate card app, pair a supported Xbox controller in Q2 Pod's
+Bluetooth menu, and start **System settings → Network → Controller**.
+Open PICO-8 normally. It reads the daemon's raw `/tmp/q2pad.client`
+datagrams automatically, in the library, Get Games, menus and carts.
+No firmware patch or Bluetooth library is required in PICO-8 itself.
+
+| Xbox controller | In a cart | In PICO-8 menus |
+| --- | --- | --- |
+| D-pad / left stick | Four directions | Browse (hold to repeat) |
+| A | O | Select |
+| B | X | Back |
+| X | X | Actions |
+| Y | — | Actions |
+| Menu / View | Pause menu | Back |
+| Xbox guide (hold) | Exit via Q2 Return | Exit via Q2 Return |
+
+Physical controls and touch still work. The right stick and triggers are not
+mapped to PICO-8's six digital buttons. Controller input is single-player.
+Q2-Controller currently supports Xbox One S / Xbox Wireless Controller
+using Classic Bluetooth, not BLE-only controllers. Start it after each boot.
+Its normal disconnect sends a neutral report; if the daemon is forcibly
+killed while a button is held, restart PICO-8 to clear it. Older firmware
+may still enforce its own idle or Return behavior.
+
 ## Controls in a cart
 
 The physical directions follow Pocket Boy. The clickwheel browses Cover Flow

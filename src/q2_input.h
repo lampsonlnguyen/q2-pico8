@@ -36,6 +36,8 @@ void q2_input_set_centre(unsigned button);
 unsigned q2_input_centre(void);
 /* action: 'd', 'm' or 'u'; x, y in the 375x320 view. */
 void q2_input_touch(char action, int x, int y, unsigned now);
+/* Q2-Controller's /tmp/q2pad.client report; returns 1 for a valid line. */
+int q2_input_pad_report(const char *line, unsigned now);
 void q2_input_quit(void);
 /* Snapshot since the last call; clears edges. */
 q2_input q2_input_take(unsigned now);

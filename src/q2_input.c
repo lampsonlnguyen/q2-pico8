@@ -44,6 +44,7 @@ static unsigned overlay_shown = 1, overlay_changed;
 static unsigned centre = Q2_X, game_wheel;
 
 static unsigned full, game, physical, touch_key;
+static unsigned pad_raw, pad_blocked, pad_held, pad_repeat_at;
 static unsigned return_down, return_back, return_at, back_at, back_pending;
 static unsigned centre_down, centre_edge;
 static unsigned wheel_bit, wheel_until;
@@ -60,6 +61,7 @@ static void clear_edges(void) {
 }
 void q2_input_reset(void) {
     physical = touch_key = wheel_bit = 0;
+    pad_raw = pad_blocked = pad_held = pad_repeat_at = 0;
     return_down = return_back = return_at = back_at = back_pending = centre_down = 0;
     out.buttons = 0; out.quit = 0;
     mouse_touch = 0;
@@ -72,6 +74,9 @@ void q2_input_set_full(int on) { full = on != 0; }
 int q2_input_full(void) { return (int)full; }
 void q2_input_set_game(int on) {
     game = on != 0;
+    /* A button that opened a menu or cart must be released before reuse. */
+    pad_blocked = pad_raw;
+    pad_held = pad_repeat_at = 0;
     physical = touch_key = wheel_bit = 0;
     return_back = mouse_touch = 0;
     out.mouse_x = out.mouse_y = 0;
@@ -94,7 +99,7 @@ static int key_id(int code) {
 }
 
 static void hold(unsigned bit, int down) {
-    if (down) { out.pressed |= bit & ~physical; physical |= bit; }
+    if (down) { out.pressed |= bit & ~(physical | pad_held); physical |= bit; }
     else physical &= ~bit;
 }
 
@@ -150,7 +155,7 @@ void q2_input_wheel(int travel, unsigned now) {
     if (!game_wheel) return;
     unsigned bit = travel > 0 ? Q2_RIGHT : Q2_LEFT;
     if (wheel_bit != bit || (int)(now - wheel_until) >= 0)
-        out.pressed |= bit & ~(physical | touch_key);
+        out.pressed |= bit & ~(physical | touch_key | pad_held);
     wheel_bit = bit;
     int span = 120 + 4 * (travel > 0 ? travel : -travel);
     wheel_until = now + (span < 300 ? span : 300);
@@ -273,14 +278,93 @@ void q2_input_touch(char action, int x, int y, unsigned now) {
     }
     /* Sliding onto an action button presses it. */
     if (key == Q2_PAUSE && action != 'd') key = 0;
-    out.pressed |= key & ~(touch_key | physical | wheel_bit);
+    out.pressed |= key & ~(touch_key | physical | wheel_bit | pad_held);
     touch_key = key;
 }
 
+/* Q2-Controller protocol (Carbon-66/Q2-Controller, README.md).
+ * Parse a complete report without libc so the browser build stays freestanding.
+ * Stick directions use a dead zone; D-pad and stick may be combined. */
+enum { PAD_A=0x1, PAD_B=0x2, PAD_X=0x4, PAD_Y=0x8,
+       PAD_VIEW=0x40, PAD_MENU=0x80, PAD_UP=0x800, PAD_DOWN=0x1000,
+       PAD_LEFT=0x2000, PAD_RIGHT=0x4000, PAD_DEAD=12000 };
+
+static int pad_field(const char **at, unsigned base, int min, int max, int *value) {
+    const char *p = *at;
+    if (*p++ != ' ') return 0;
+    int negative = *p == '-';
+    if (negative) ++p;
+    if (negative && min >= 0) return 0;
+    unsigned n = 0, count = 0;
+    for (;;) {
+        unsigned d;
+        if (*p >= '0' && *p <= '9') d = (unsigned)(*p - '0');
+        else if (*p >= 'a' && *p <= 'f') d = (unsigned)(*p - 'a' + 10);
+        else if (*p >= 'A' && *p <= 'F') d = (unsigned)(*p - 'A' + 10);
+        else break;
+        if (d >= base || n > (32768u - d) / base) return 0;
+        n = n * base + d;
+        ++p;
+        ++count;
+    }
+    int v = negative ? -(int)n : (int)n;
+    if (!count || v < min || v > max) return 0;
+    *value = v;
+    *at = p;
+    return 1;
+}
+
+int q2_input_pad_report(const char *line, unsigned now) {
+    if (*line++ != 'p') return 0;
+    int b, lx, ly, ignored;
+    if (!pad_field(&line, 16, 0, 0x7fff, &b) ||
+        !pad_field(&line, 10, -32768, 32767, &lx) ||
+        !pad_field(&line, 10, -32768, 32767, &ly) ||
+        !pad_field(&line, 10, -32768, 32767, &ignored) ||
+        !pad_field(&line, 10, -32768, 32767, &ignored) ||
+        !pad_field(&line, 10, 0, 1023, &ignored) ||
+        !pad_field(&line, 10, 0, 1023, &ignored) ||
+        line[0] != '\n' || line[1] != 0) return 0;
+    unsigned raw = (unsigned)b;
+    if (lx <= -PAD_DEAD) raw |= PAD_LEFT;
+    if (lx >= PAD_DEAD) raw |= PAD_RIGHT;
+    if (ly <= -PAD_DEAD) raw |= PAD_UP;
+    if (ly >= PAD_DEAD) raw |= PAD_DOWN;
+    pad_raw = raw;
+    pad_blocked &= raw;
+    raw &= ~pad_blocked;
+    unsigned held = 0;
+    if (game) {
+        if (raw & PAD_LEFT) held |= Q2_LEFT;
+        if (raw & PAD_RIGHT) held |= Q2_RIGHT;
+        if (raw & PAD_UP) held |= Q2_UP;
+        if (raw & PAD_DOWN) held |= Q2_DOWN;
+        if (raw & PAD_A) held |= Q2_O;
+        if (raw & (PAD_B | PAD_X)) held |= Q2_X;
+        if (raw & (PAD_MENU | PAD_VIEW)) held |= Q2_PAUSE;
+    } else {
+        if (raw & (PAD_LEFT | PAD_UP)) held |= Q2_LEFT;
+        if (raw & (PAD_RIGHT | PAD_DOWN)) held |= Q2_RIGHT;
+        if (raw & PAD_A) held |= Q2_O;
+        if (raw & (PAD_X | PAD_Y)) held |= Q2_X;
+        if (raw & (PAD_B | PAD_MENU | PAD_VIEW)) held |= Q2_PAUSE;
+    }
+    if ((held ^ pad_held) & (Q2_LEFT | Q2_RIGHT))
+        pad_repeat_at = now + 350u;
+    out.pressed |= held & ~(pad_held | physical | touch_key | wheel_bit);
+    pad_held = held;
+    return 1;
+}
+
 q2_input q2_input_take(unsigned now) {
+    if (!game && (pad_held & (Q2_LEFT | Q2_RIGHT)) &&
+        (int)(now - pad_repeat_at) >= 0) {
+        out.pressed |= pad_held & (Q2_LEFT | Q2_RIGHT);
+        pad_repeat_at = now + 110u;
+    }
     if (return_down && now - return_at >= Q2_QUIT_HOLD_MS) out.quit = 1;
     if (wheel_bit && (int)(now - wheel_until) >= 0) wheel_bit = 0;
-    out.buttons = physical | touch_key | wheel_bit;
+    out.buttons = physical | touch_key | wheel_bit | pad_held;
     out.mouse_left = mouse_touch || mouse_tap;
     q2_input snapshot = out;
     clear_edges();

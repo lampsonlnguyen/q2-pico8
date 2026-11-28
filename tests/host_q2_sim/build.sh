@@ -12,6 +12,8 @@ src="${FAKE08_SRC:-/tmp/fake-08}"
 [ -f "$src/libs/z8lua/lua.h" ] || { echo "Missing FAKE-08 z8lua submodule"; exit 2; }
 out=build/host-sim
 mkdir -p "$out"
+gcc -std=c11 -Wall -Wextra -Werror -Isrc src/q2_input.c tests/pad_input.c -o "$out/pad-input-test"
+"$out/pad-input-test"
 includes=(-Isrc "-I$src/source" "-I$src/libs/z8lua"
           "-I$src/libs/miniz" "-I$src/libs/lodepng" "-I$src/libs/simpleini")
 objects=()
