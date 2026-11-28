@@ -37,12 +37,35 @@ __asm__(".text\n.set noreorder\n.globl sc\nsc:\n"
         ".set reorder\n");
 
 enum { SYS_CLOSE=4006, SYS_OPEN=4005, SYS_UNLINK=4010, SYS_IOCTL=4054,
-       SYS_MMAP=4090, SYS_MUNMAP=4091, SYS_BIND=4169, SYS_RECV=4175,
+       SYS_MMAP=4090, SYS_MUNMAP=4091, SYS_BIND=4169, SYS_CONNECT=4170, SYS_RECV=4175,
        SYS_SOCKET=4183, SYS_CLOCK_GETTIME=4263,
        FB_VSCREEN=0x4600, FB_FSCREEN=0x4602, FB_PAN=0x4606,
        O_RDWR=2, O_CLOEXEC=0x80000, MSG_DONTWAIT=0x40 };
 #define SOCKET_PATH "/tmp/q2-pico8.input.sock"
-static int fb=-1, sock=-1;
+#define PAD_SOCKET_PATH "/tmp/q2pad.client"
+static int fb=-1, sock=-1, pad_sock=-1;
+
+/* Optional Q2-Controller raw input. Never displace another live client.
+ * A killed game may have left a stale socket; MIPS o32 ECONNREFUSED=146. */
+static void pad_open(void) {
+    struct { unsigned short family; char path[108]; } addr={1,PAD_SOCKET_PATH};
+    int fd=(int)sc(SYS_SOCKET,1,1|O_CLOEXEC,0,0,0,0);
+    if(fd<0)return;
+    long rc=sc(SYS_BIND,fd,(long)&addr,sizeof addr,0,0,0);
+    if(rc==-125) { /* MIPS EADDRINUSE */
+        int probe=(int)sc(SYS_SOCKET,1,1|O_CLOEXEC,0,0,0,0);
+        if(probe>=0) {
+            long status=sc(SYS_CONNECT,probe,(long)&addr,sizeof addr,0,0,0);
+            sc(SYS_CLOSE,probe,0,0,0,0,0);
+            if(status==-146) {
+                sc(SYS_UNLINK,(long)PAD_SOCKET_PATH,0,0,0,0,0);
+                rc=sc(SYS_BIND,fd,(long)&addr,sizeof addr,0,0,0);
+            }
+        }
+    }
+    if(rc)sc(SYS_CLOSE,fd,0,0,0,0,0);
+    else pad_sock=fd;
+}
 static unsigned var[40],fix[17],stride,front,visible,rows,can_pan;
 static q2_pixel *memory;
 #ifdef Q2_GLIBC
@@ -372,6 +395,7 @@ int q2_open(void) {
            keys>=0?"q2-pico8: GPIO buttons grabbed\n":
            "q2-pico8: Q2 Pod 1.8 button fallback\n");
 #endif
+    pad_open(); /* failure is nonfatal: native controls still work */
     return 0;
 error:
     q2_close();
@@ -422,6 +446,15 @@ q2_input q2_read_input(void) {
             if (*x && *y) q2_input_touch(m[2],number(x),number(y),now);
             else if (m[2]=='u') q2_input_touch('u',-1,-1,now);
         }
+    }
+    /* Drain complete controller snapshots, retaining quick press edges. */
+    char pad[96];
+    for(unsigned i=0;pad_sock>=0&&i<64;++i) {
+        n=sc(SYS_RECV,pad_sock,(long)pad,sizeof pad-1,MSG_DONTWAIT,0,0);
+        if(n<=0)break;
+        if(n==(long)sizeof pad-1||pad[n-1]!='\n')continue;
+        pad[n]=0;
+        q2_input_pad_report(pad,now);
     }
     return q2_input_take(now);
 }
@@ -568,6 +601,11 @@ void q2_debug_stage(unsigned stage,uint32_t rgb,const char *what){(void)stage;(v
 
 void q2_close(void) {
     q2_audio_close();
+    if(pad_sock>=0) {
+        sc(SYS_UNLINK,(long)PAD_SOCKET_PATH,0,0,0,0,0);
+        sc(SYS_CLOSE,pad_sock,0,0,0,0,0);
+        pad_sock=-1;
+    }
 #ifdef Q2_GLIBC
     if(keys>=0){sc(SYS_CLOSE,keys,0,0,0,0,0);keys=-1;} /* releases the grab */
 #endif
