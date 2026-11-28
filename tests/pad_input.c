@@ -6,6 +6,14 @@ int main(void) {
     q2_input_reset();
     q2_input_set_full(1);
     q2_input_set_game(1);
+    assert(q2_input_pad_report("p 1 0 0 0 0 0 0\n", 1));
+    assert(q2_input_take(1).buttons == Q2_O);
+    assert(q2_input_pad_report("p 2 0 0 0 0 0 0\n", 2));
+    assert(q2_input_take(2).buttons == Q2_X);
+    assert(q2_input_pad_report("p 4 0 0 0 0 0 0\n", 3));
+    assert(q2_input_take(3).buttons == Q2_X);
+    assert(q2_input_pad_report("p 0 0 0 0 0 0 0\n", 4));
+    assert(q2_input_take(4).buttons == 0);
     assert(q2_input_pad_report("p 2803 0 0 0 0 0 0\n", 10));
     q2_input s = q2_input_take(10);
     assert(s.buttons == (Q2_LEFT | Q2_UP | Q2_O | Q2_X));

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.7
+
+- Integrate Q2 Pod 1.9.6+ Bluetooth Devices (`DiamondBond/q2-devices`), replacing the standalone Q2-Controller socket with `/tmp/q2-devices.pad` while retaining the raw gamepad report format.
+- Declare `needs=devices` so the App Store installs Devices automatically. Pair through System settings → Bluetooth; the firmware starts/stops Devices with Bluetooth.
+- Preserve D-pad and left-stick movement, independent O/X actions (Xbox A = O; B or X = X), simultaneous input, pause/menu navigation, physical buttons, clickwheel and touch.
+- Devices sends a neutral report on normal disconnect, suppresses duplicate native controls during game capture except Xbox/Return, and supplies firmware idle-activity notifications.
+- Add individual A/B/X and neutral-report regression assertions; retain simultaneous direction/action coverage.
+- Bluetooth requires a supported Xbox controller over Bluetooth Classic and Q2 Pod 1.9.6 or later. BLE-only controllers, right-stick/trigger gameplay mappings and multiple players are not supported. The legacy standalone socket is no longer used.
+- Known limitation: if Devices is forcibly killed while a button is held, restarting PICO-8 may be necessary to clear the input. Physical Q2 Bluetooth gameplay has not yet been validated.
+
 ## v1.0.6
 
 - Add optional Bluetooth gamepad support via Carbon-66/Q2-Controller: D-pad and left stick, O/X actions, pause, library navigation and disconnect handling. Native controls remain available.
