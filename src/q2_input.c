@@ -282,7 +282,7 @@ void q2_input_touch(char action, int x, int y, unsigned now) {
     touch_key = key;
 }
 
-/* Q2-Controller protocol (Carbon-66/Q2-Controller, README.md).
+/* Q2 Devices protocol (DiamondBond/q2-devices, README.md).
  * Parse a complete report without libc so the browser build stays freestanding.
  * Stick directions use a dead zone; D-pad and stick may be combined. */
 enum { PAD_A=0x1, PAD_B=0x2, PAD_X=0x4, PAD_Y=0x8,
